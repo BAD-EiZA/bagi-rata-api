@@ -1,7 +1,10 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { IdempotencyService } from '../common/idempotency/idempotency.service';
+import { requireInternalUser } from '../common/users/resolve-user';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
 import { DisputeSettlementDto } from './dto/dispute-settlement.dto';
 import { SettlementsService } from './settlements.service';
@@ -10,7 +13,11 @@ import { SettlementsService } from './settlements.service';
 @ApiBearerAuth()
 @Controller()
 export class SettlementsController {
-  constructor(private readonly settlements: SettlementsService) {}
+  constructor(
+    private readonly settlements: SettlementsService,
+    private readonly prisma: PrismaService,
+    private readonly idempotency: IdempotencyService,
+  ) {}
 
   @Get('groups/:groupId/settlements')
   list(@CurrentUser() auth: AuthUser, @Param('groupId') groupId: string) {
@@ -18,12 +25,30 @@ export class SettlementsController {
   }
 
   @Post('groups/:groupId/settlements')
-  create(
+  async create(
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
     @Body() dto: CreateSettlementDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.settlements.create(auth.authSubjectId, groupId, dto);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
+    const gate = await this.idempotency.begin(user.id, idempotencyKey, dto);
+    if (gate?.hit) return gate.response;
+    const created = await this.settlements.create(
+      auth.authSubjectId,
+      groupId,
+      dto,
+    );
+    if (gate && !gate.hit) {
+      await this.idempotency.commit(
+        user.id,
+        idempotencyKey,
+        gate.requestHash,
+        201,
+        created,
+      );
+    }
+    return created;
   }
 
   @Get('groups/:groupId/settlements/:settlementId')

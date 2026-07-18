@@ -209,6 +209,10 @@ export class InsightsService {
     const groupName = new Map(
       memberships.map((m) => [m.groupId, m.group.name]),
     );
+    const groupCurrency = new Map(
+      memberships.map((m) => [m.groupId, m.group.currencyCode]),
+    );
+    const currencies = [...new Set(memberships.map((m) => m.group.currencyCode))];
 
     return {
       userId: user.id,
@@ -225,13 +229,16 @@ export class InsightsService {
           .map(([groupId, amountMinor]) => ({
             groupId,
             groupName: groupName.get(groupId) ?? groupId,
+            currencyCode: groupCurrency.get(groupId) ?? 'IDR',
             amountMinor,
           }))
           .sort((a, b) => b.amountMinor - a.amountMinor),
       },
-      notes: [
-        'Nilai per mata uang tidak digabung; data saat ini asumsi IDR per grup.',
-      ],
+      currencies,
+      notes:
+        currencies.length > 1
+          ? ['Total dan kategori agregat mencakup beberapa mata uang. Gunakan rincian per grup.']
+          : ['Semua nominal menggunakan mata uang grup.'],
     };
   }
 }

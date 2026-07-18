@@ -86,6 +86,7 @@ export class PwaController {
     });
     return rows.map((r) => ({
       id: r.id,
+      endpointHash: r.endpointHash,
       deviceLabel: r.deviceLabel,
       platform: r.platform,
       createdAt: r.createdAt.toISOString(),
