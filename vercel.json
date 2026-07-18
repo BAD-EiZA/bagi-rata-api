@@ -1,7 +1,8 @@
 {
-  "version": 2,
+  "framework": null,
   "buildCommand": "prisma generate && nest build",
   "installCommand": "npm install",
+  "outputDirectory": "public",
   "functions": {
     "api/index.js": {
       "maxDuration": 60,
