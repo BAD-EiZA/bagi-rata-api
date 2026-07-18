@@ -1,0 +1,902 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  DELETED
+}
+
+enum GroupType {
+  TRIP
+  HOME
+  COUPLE
+  FAMILY
+  EVENT
+  COMMUNITY
+  OTHER
+}
+
+enum GroupStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MemberStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum SplitMethod {
+  EQUAL
+  EXACT
+  PERCENTAGE
+  ITEM
+}
+
+enum LedgerSourceType {
+  EXPENSE
+  EXPENSE_REVERSAL
+  SETTLEMENT
+  SETTLEMENT_REVERSAL
+}
+
+enum LedgerStatus {
+  POSTED
+  REVERSED
+}
+
+enum AttachmentStatus {
+  PENDING
+  READY
+  FAILED
+  DELETING
+  DELETED
+}
+
+enum AttachmentEntityType {
+  EXPENSE
+  SETTLEMENT
+  DRAFT
+}
+
+enum ReceiptScanStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CONFIRMED
+}
+
+enum ItemSource {
+  MANUAL
+  AI
+}
+
+enum SettlementStatus {
+  DRAFT
+  PENDING_CONFIRMATION
+  CONFIRMED
+  DISPUTED
+  CANCELLED
+  EXPIRED
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+enum ReactionType {
+  THUMBS_UP
+  CHECKED
+  THANKS
+  NEEDS_CHECK
+}
+
+enum GroupSettlementStatus {
+  ACTIVE
+  ALL_SETTLED
+}
+
+enum InsightScope {
+  GROUP
+  USER
+}
+
+model User {
+  id           String     @id @default(cuid())
+  clerkUserId  String     @unique @map("clerk_user_id")
+  displayName  String     @map("display_name")
+  primaryEmail String?    @map("primary_email")
+  avatarUrl    String?    @map("avatar_url")
+  locale       String     @default("id-ID")
+  timezone     String     @default("Asia/Jakarta")
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  memberships          GroupMember[]
+  createdGroups        Group[]              @relation("GroupCreator")
+  invitations          GroupInvitation[]    @relation("InvitationCreator")
+  expensesCreated      Expense[]            @relation("ExpenseCreator")
+  expensePayers        ExpensePayer[]
+  expenseSplits        ExpenseSplit[]
+  itemAllocations      ExpenseItemAllocation[]
+  ledgerEntries        LedgerEntry[]
+  uploadSessions       UploadSession[]
+  attachments          MediaAttachment[]
+  receiptScans         ReceiptScan[]
+  activityEvents       ActivityEvent[]      @relation("ActivityActor")
+  settlementsFrom      Settlement[]         @relation("SettlementFrom")
+  settlementsTo        Settlement[]         @relation("SettlementTo")
+  settlementsCreated   Settlement[]         @relation("SettlementCreator")
+  settlementsConfirmed Settlement[]         @relation("SettlementConfirmer")
+  comments             Comment[]
+  commentMentions      CommentMention[]
+  reactions            Reaction[]
+  notifications        Notification[]       @relation("NotificationRecipient")
+  notificationsActed   Notification[]       @relation("NotificationActor")
+  remindersSent        PaymentReminder[]    @relation("ReminderSender")
+  remindersReceived    PaymentReminder[]    @relation("ReminderRecipient")
+  shareLinks           ShareLink[]
+  pushSubscriptions    PushSubscription[]
+  subscriptionsPaid    Subscription[]       @relation("SubscriptionPayer")
+  userSubscriptions    Subscription[]       @relation("SubscriptionSubjectUser")
+  billingOrders        BillingOrder[]
+
+  @@map("users")
+}
+
+model IdempotencyRecord {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  key          String
+  requestHash  String   @map("request_hash")
+  responseCode Int      @map("response_code")
+  responseBody Json     @map("response_body")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, key])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+model Group {
+  id                            String      @id @default(cuid())
+  name                          String
+  description                   String?
+  type                          GroupType   @default(OTHER)
+  currencyCode                  String      @default("IDR") @map("currency_code")
+  timezone                      String      @default("Asia/Jakarta")
+  iconEmoji                     String?     @map("icon_emoji")
+  status                        GroupStatus @default(ACTIVE)
+  requireSettlementConfirmation Boolean     @default(true) @map("require_settlement_confirmation")
+  allowMemberInvites            Boolean     @default(true) @map("allow_member_invites")
+  allowOverpayment              Boolean     @default(true) @map("allow_overpayment")
+  budgetEnabled                 Boolean     @default(false) @map("budget_enabled")
+  createdById                   String      @map("created_by")
+  createdAt                     DateTime    @default(now()) @map("created_at")
+  updatedAt                     DateTime    @updatedAt @map("updated_at")
+
+  createdBy        User               @relation("GroupCreator", fields: [createdById], references: [id])
+  members          GroupMember[]
+  invitations      GroupInvitation[]
+  expenses         Expense[]
+  ledgerTxns       LedgerTransaction[]
+  uploadSessions   UploadSession[]
+  attachments      MediaAttachment[]
+  receiptScans     ReceiptScan[]
+  activityEvents   ActivityEvent[]
+  settlements      Settlement[]
+  comments         Comment[]
+  reactions        Reaction[]
+  notifications    Notification[]
+  reminders        PaymentReminder[]
+  shareLinks       ShareLink[]
+  settlementState  GroupSettlementState?
+  insightSnapshots InsightSnapshot[]
+  groupSubscriptions Subscription[] @relation("SubscriptionSubjectGroup")
+  groupBillingOrders BillingOrder[] @relation("BillingOrderGroup")
+  budgets            GroupBudget[]
+
+  @@index([status])
+  @@map("groups")
+}
+
+model GroupMember {
+  id        String       @id @default(cuid())
+  groupId   String       @map("group_id")
+  userId    String       @map("user_id")
+  role      MemberRole   @default(MEMBER)
+  status    MemberStatus @default(ACTIVE)
+  joinedAt  DateTime     @default(now()) @map("joined_at")
+  removedAt DateTime?    @map("removed_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+  @@index([userId, status])
+  @@map("group_members")
+}
+
+model GroupInvitation {
+  id        String    @id @default(cuid())
+  groupId   String    @map("group_id")
+  tokenHash String    @map("token_hash")
+  createdById String  @map("created_by")
+  expiresAt DateTime  @map("expires_at")
+  maxUses   Int?      @map("max_uses")
+  useCount  Int       @default(0) @map("use_count")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("InvitationCreator", fields: [createdById], references: [id])
+
+  @@index([groupId])
+  @@index([tokenHash])
+  @@map("group_invitations")
+}
+
+model Expense {
+  id                 String      @id @default(cuid())
+  groupId            String      @map("group_id")
+  description        String
+  merchantName       String?     @map("merchant_name")
+  amountMinor        Int         @map("amount_minor")
+  currencyCode       String      @map("currency_code")
+  expenseDate        DateTime    @map("expense_date") @db.Date
+  splitMethod        SplitMethod @map("split_method")
+  subtotalMinor      Int         @default(0) @map("subtotal_minor")
+  taxMinor           Int         @default(0) @map("tax_minor")
+  serviceChargeMinor Int         @default(0) @map("service_charge_minor")
+  discountMinor      Int         @default(0) @map("discount_minor")
+  tipMinor           Int         @default(0) @map("tip_minor")
+  category           String?
+  notes              String?
+  createdById        String      @map("created_by")
+  version            Int         @default(1)
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+  deletedAt          DateTime?   @map("deleted_at")
+
+  group     Group                   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User                    @relation("ExpenseCreator", fields: [createdById], references: [id])
+  payers    ExpensePayer[]
+  splits    ExpenseSplit[]
+  items     ExpenseItem[]
+
+  @@index([groupId, deletedAt, expenseDate])
+  @@map("expenses")
+}
+
+model ExpensePayer {
+  id          String @id @default(cuid())
+  expenseId   String @map("expense_id")
+  userId      String @map("user_id")
+  amountMinor Int    @map("amount_minor")
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([expenseId, userId])
+  @@map("expense_payers")
+}
+
+model ExpenseSplit {
+  id          String  @id @default(cuid())
+  expenseId   String  @map("expense_id")
+  userId      String  @map("user_id")
+  amountMinor Int     @map("amount_minor")
+  percentage  Decimal? @map("percentage") @db.Decimal(8, 4)
+  shares      Int?
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([expenseId, userId])
+  @@map("expense_splits")
+}
+
+model ExpenseItem {
+  id             String     @id @default(cuid())
+  expenseId      String     @map("expense_id")
+  name           String
+  quantity       Decimal    @default(1) @map("quantity") @db.Decimal(12, 4)
+  unitPriceMinor Int        @map("unit_price_minor")
+  lineTotalMinor Int        @map("line_total_minor")
+  source         ItemSource @default(MANUAL)
+  aiConfidence   Float?     @map("ai_confidence")
+  sortOrder      Int        @default(0) @map("sort_order")
+
+  expense     Expense                 @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  allocations ExpenseItemAllocation[]
+
+  @@index([expenseId])
+  @@map("expense_items")
+}
+
+model ExpenseItemAllocation {
+  id            String   @id @default(cuid())
+  expenseItemId String   @map("expense_item_id")
+  userId        String   @map("user_id")
+  amountMinor   Int      @map("amount_minor")
+  ratio         Decimal? @map("ratio") @db.Decimal(8, 6)
+
+  expenseItem ExpenseItem @relation(fields: [expenseItemId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id])
+
+  @@unique([expenseItemId, userId])
+  @@map("expense_item_allocations")
+}
+
+model LedgerTransaction {
+  id                    String           @id @default(cuid())
+  groupId               String           @map("group_id")
+  sourceType            LedgerSourceType @map("source_type")
+  sourceId              String           @map("source_id")
+  status                LedgerStatus     @default(POSTED)
+  reversesTransactionId String?          @map("reverses_transaction_id")
+  createdAt             DateTime         @default(now()) @map("created_at")
+
+  group    Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  reverses LedgerTransaction?  @relation("LedgerReversal", fields: [reversesTransactionId], references: [id])
+  reversedBy LedgerTransaction[] @relation("LedgerReversal")
+  entries  LedgerEntry[]
+
+  @@index([groupId, status])
+  @@index([sourceType, sourceId])
+  @@map("ledger_transactions")
+}
+
+model LedgerEntry {
+  id                  String   @id @default(cuid())
+  ledgerTransactionId String   @map("ledger_transaction_id")
+  userId              String   @map("user_id")
+  amountMinorSigned   Int      @map("amount_minor_signed")
+  currencyCode        String   @map("currency_code")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  ledgerTransaction LedgerTransaction @relation(fields: [ledgerTransactionId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([ledgerTransactionId])
+  @@map("ledger_entries")
+}
+
+model UploadSession {
+  id        String   @id @default(cuid())
+  groupId   String   @map("group_id")
+  userId    String   @map("user_id")
+  status    String   @default("OPEN")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  group       Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id])
+  attachments MediaAttachment[]
+
+  @@index([groupId, userId])
+  @@map("upload_sessions")
+}
+
+model MediaAttachment {
+  id                String               @id @default(cuid())
+  groupId           String               @map("group_id")
+  uploadedById      String               @map("uploaded_by")
+  entityType        AttachmentEntityType @default(DRAFT) @map("entity_type")
+  entityId          String?              @map("entity_id")
+  uploadSessionId   String?              @map("upload_session_id")
+  cloudinaryPublicId String              @map("cloudinary_public_id")
+  cloudinaryAssetId String?              @map("cloudinary_asset_id")
+  deliveryType      String               @default("authenticated") @map("delivery_type")
+  resourceType      String               @default("image") @map("resource_type")
+  format            String?
+  width             Int?
+  height            Int?
+  bytes             Int?
+  version           Int?
+  etag              String?
+  status            AttachmentStatus     @default(PENDING)
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  deletedAt         DateTime?            @map("deleted_at")
+
+  group         Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  uploadedBy    User           @relation(fields: [uploadedById], references: [id])
+  uploadSession UploadSession? @relation(fields: [uploadSessionId], references: [id])
+  receiptScans  ReceiptScan[]
+
+  @@index([groupId, entityType, entityId])
+  @@map("media_attachments")
+}
+
+model ReceiptScan {
+  id                String            @id @default(cuid())
+  groupId           String            @map("group_id")
+  attachmentId      String            @map("attachment_id")
+  requestedById     String            @map("requested_by")
+  modelId           String            @map("model_id")
+  promptVersion     String            @default("v1") @map("prompt_version")
+  schemaVersion     String            @default("v1") @map("schema_version")
+  status            ReceiptScanStatus @default(PENDING)
+  resultJson        Json?             @map("result_json")
+  overallConfidence Float?            @map("overall_confidence")
+  errorCode         String?           @map("error_code")
+  startedAt         DateTime?         @map("started_at")
+  completedAt       DateTime?         @map("completed_at")
+  confirmedAt       DateTime?         @map("confirmed_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  group       Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  attachment  MediaAttachment @relation(fields: [attachmentId], references: [id])
+  requestedBy User            @relation(fields: [requestedById], references: [id])
+
+  @@index([groupId, attachmentId])
+  @@map("receipt_scans")
+}
+
+model ActivityEvent {
+  id          String   @id @default(cuid())
+  groupId     String   @map("group_id")
+  actorUserId String?  @map("actor_user_id")
+  eventType   String   @map("event_type")
+  entityType  String?  @map("entity_type")
+  entityId    String?  @map("entity_id")
+  payload     Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  actor User? @relation("ActivityActor", fields: [actorUserId], references: [id])
+
+  @@index([groupId, createdAt])
+  @@map("activity_events")
+}
+
+model Settlement {
+  id              String           @id @default(cuid())
+  groupId         String           @map("group_id")
+  fromUserId      String           @map("from_user_id")
+  toUserId        String           @map("to_user_id")
+  amountMinor     Int              @map("amount_minor")
+  currencyCode    String           @map("currency_code")
+  settlementDate  DateTime         @map("settlement_date") @db.Date
+  notes           String?
+  status          SettlementStatus @default(PENDING_CONFIRMATION)
+  createdById     String           @map("created_by")
+  confirmedById   String?          @map("confirmed_by")
+  confirmedAt     DateTime?        @map("confirmed_at")
+  disputeReason   String?          @map("dispute_reason")
+  version         Int              @default(1)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  group       Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  fromUser    User  @relation("SettlementFrom", fields: [fromUserId], references: [id])
+  toUser      User  @relation("SettlementTo", fields: [toUserId], references: [id])
+  createdBy   User  @relation("SettlementCreator", fields: [createdById], references: [id])
+  confirmedBy User? @relation("SettlementConfirmer", fields: [confirmedById], references: [id])
+
+  @@index([groupId, status, deletedAt])
+  @@map("settlements")
+}
+
+model Comment {
+  id           String    @id @default(cuid())
+  groupId      String    @map("group_id")
+  entityType   String    @map("entity_type")
+  entityId     String    @map("entity_id")
+  authorUserId String    @map("author_user_id")
+  body         String
+  editedAt     DateTime? @map("edited_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  group    Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  author   User             @relation(fields: [authorUserId], references: [id])
+  mentions CommentMention[]
+
+  @@index([groupId, entityType, entityId])
+  @@map("comments")
+}
+
+model CommentMention {
+  id               String    @id @default(cuid())
+  commentId        String    @map("comment_id")
+  mentionedUserId  String    @map("mentioned_user_id")
+  notifiedAt       DateTime? @map("notified_at")
+
+  comment        Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  mentionedUser  User    @relation(fields: [mentionedUserId], references: [id])
+
+  @@unique([commentId, mentionedUserId])
+  @@map("comment_mentions")
+}
+
+model Reaction {
+  id           String       @id @default(cuid())
+  groupId      String       @map("group_id")
+  entityType   String       @map("entity_type")
+  entityId     String       @map("entity_id")
+  userId       String       @map("user_id")
+  reactionType ReactionType @map("reaction_type")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([entityType, entityId, userId])
+  @@index([groupId, entityType, entityId])
+  @@map("reactions")
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  userId      String             @map("user_id")
+  type        String
+  groupId     String?            @map("group_id")
+  actorUserId String?            @map("actor_user_id")
+  entityType  String?            @map("entity_type")
+  entityId    String?            @map("entity_id")
+  payload     Json?
+  status      NotificationStatus @default(UNREAD)
+  readAt      DateTime?          @map("read_at")
+  archivedAt  DateTime?          @map("archived_at")
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  user  User   @relation("NotificationRecipient", fields: [userId], references: [id])
+  actor User?  @relation("NotificationActor", fields: [actorUserId], references: [id])
+  group Group? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@map("notifications")
+}
+
+model PaymentReminder {
+  id                  String   @id @default(cuid())
+  groupId             String   @map("group_id")
+  senderUserId        String   @map("sender_user_id")
+  recipientUserId     String   @map("recipient_user_id")
+  amountMinorSnapshot Int      @map("amount_minor_snapshot")
+  channel             String   @default("IN_APP")
+  shareLinkId         String?  @map("share_link_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  group     Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender    User       @relation("ReminderSender", fields: [senderUserId], references: [id])
+  recipient User       @relation("ReminderRecipient", fields: [recipientUserId], references: [id])
+  shareLink ShareLink? @relation(fields: [shareLinkId], references: [id])
+
+  @@index([groupId, senderUserId, recipientUserId, createdAt])
+  @@map("payment_reminders")
+}
+
+model ShareLink {
+  id              String    @id @default(cuid())
+  groupId         String    @map("group_id")
+  createdById     String    @map("created_by")
+  tokenHash       String    @map("token_hash")
+  purpose         String
+  recipientUserId String?   @map("recipient_user_id")
+  expiresAt       DateTime  @map("expires_at")
+  revokedAt       DateTime? @map("revoked_at")
+  openedAt        DateTime? @map("opened_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  group     Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User              @relation(fields: [createdById], references: [id])
+  reminders PaymentReminder[]
+
+  @@index([tokenHash])
+  @@index([groupId])
+  @@map("share_links")
+}
+
+model GroupSettlementState {
+  groupId          String                @id @map("group_id")
+  status           GroupSettlementStatus @default(ACTIVE)
+  lastAllSettledAt DateTime?             @map("last_all_settled_at")
+  stateVersion     Int                   @default(1) @map("state_version")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("group_settlement_states")
+}
+
+model InsightSnapshot {
+  id            String       @id @default(cuid())
+  scopeType     InsightScope @map("scope_type")
+  scopeId       String       @map("scope_id")
+  groupId       String?      @map("group_id")
+  currencyCode  String       @map("currency_code")
+  periodStart   DateTime     @map("period_start") @db.Date
+  periodEnd     DateTime     @map("period_end") @db.Date
+  metricsJson   Json         @map("metrics_json")
+  generatedAt   DateTime     @default(now()) @map("generated_at")
+  sourceVersion String       @default("v1") @map("source_version")
+
+  group Group? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([scopeType, scopeId, periodStart])
+  @@index([groupId])
+  @@map("insight_snapshots")
+}
+
+model PushSubscription {
+  id                  String    @id @default(cuid())
+  userId              String    @map("user_id")
+  endpointHash        String    @map("endpoint_hash")
+  endpointEncrypted   String    @map("endpoint_encrypted")
+  p256dhKeyEncrypted  String    @map("p256dh_key_encrypted")
+  authKeyEncrypted    String    @map("auth_key_encrypted")
+  userAgentSummary    String?   @map("user_agent_summary")
+  deviceLabel         String?   @map("device_label")
+  platform            String?
+  permissionStatus    String    @default("granted") @map("permission_status")
+  lastSuccessAt       DateTime? @map("last_success_at")
+  failureCount        Int       @default(0) @map("failure_count")
+  expiresAt           DateTime? @map("expires_at")
+  revokedAt           DateTime? @map("revoked_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpointHash])
+  @@map("push_subscriptions")
+}
+
+enum PlanScope {
+  USER
+  GROUP
+}
+
+enum BillingType {
+  FREE
+  RECURRING
+  ONE_TIME
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  PENDING_PAYMENT
+  ACTIVE
+  PAST_DUE
+  GRACE_PERIOD
+  CANCELED
+  EXPIRED
+  REFUNDED
+  REVOKED
+}
+
+enum BillingOrderStatus {
+  CREATED
+  PENDING
+  PAID
+  EXPIRED
+  FAILED
+  CANCELED
+  REFUNDED
+  REVIEW
+}
+
+enum BillingOrderType {
+  INITIAL
+  RENEWAL
+  PLAN_CHANGE
+  PASS_PURCHASE
+}
+
+enum SubjectType {
+  USER
+  GROUP
+}
+
+model SubscriptionPlan {
+  id                String      @id @default(cuid())
+  code              String      @unique
+  name              String
+  scopeType         PlanScope   @map("scope_type")
+  billingType       BillingType @map("billing_type")
+  amountMinor       Int         @map("amount_minor")
+  currencyCode      String      @default("IDR") @map("currency_code")
+  durationUnit      String?     @map("duration_unit")
+  durationValue     Int?        @map("duration_value")
+  isActive          Boolean     @default(true) @map("is_active")
+  entitlementConfig Json        @map("entitlement_config")
+  sortOrder         Int         @default(0) @map("sort_order")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+  billingOrders BillingOrder[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  planId                 String             @map("plan_id")
+  subjectType            SubjectType        @map("subject_type")
+  subjectUserId          String?            @map("subject_user_id")
+  subjectGroupId         String?            @map("subject_group_id")
+  payerUserId            String             @map("payer_user_id")
+  status                 SubscriptionStatus @default(PENDING_PAYMENT)
+  autoRenew              Boolean            @default(false) @map("auto_renew")
+  midtransSubscriptionId String?            @unique @map("midtrans_subscription_id")
+  currentPeriodStart     DateTime?          @map("current_period_start")
+  currentPeriodEnd       DateTime?          @map("current_period_end")
+  graceEndsAt            DateTime?          @map("grace_ends_at")
+  cancelAtPeriodEnd      Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt             DateTime?          @map("canceled_at")
+  expiredAt              DateTime?          @map("expired_at")
+  version                Int                @default(1)
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  plan         SubscriptionPlan          @relation(fields: [planId], references: [id])
+  payer        User                      @relation("SubscriptionPayer", fields: [payerUserId], references: [id])
+  subjectUser  User?                     @relation("SubscriptionSubjectUser", fields: [subjectUserId], references: [id])
+  subjectGroup Group?                    @relation("SubscriptionSubjectGroup", fields: [subjectGroupId], references: [id])
+  entitlements SubscriptionEntitlement[]
+  billingOrders BillingOrder[]
+
+  @@index([subjectType, subjectUserId, status])
+  @@index([subjectType, subjectGroupId, status])
+  @@map("subscriptions")
+}
+
+model SubscriptionEntitlement {
+  id             String    @id @default(cuid())
+  subscriptionId String    @map("subscription_id")
+  featureKey     String    @map("feature_key")
+  valueType      String    @map("value_type")
+  booleanValue   Boolean?  @map("boolean_value")
+  integerValue   Int?      @map("integer_value")
+  stringValue    String?   @map("string_value")
+  effectiveFrom  DateTime  @map("effective_from")
+  effectiveUntil DateTime? @map("effective_until")
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, featureKey])
+  @@map("subscription_entitlements")
+}
+
+model BillingOrder {
+  id              String            @id @default(cuid())
+  orderId         String            @unique @map("order_id")
+  subscriptionId  String?           @map("subscription_id")
+  planId          String            @map("plan_id")
+  payerUserId     String            @map("payer_user_id")
+  subjectType     SubjectType       @map("subject_type")
+  subjectUserId   String?           @map("subject_user_id")
+  subjectGroupId  String?           @map("subject_group_id")
+  orderType       BillingOrderType  @map("order_type")
+  amountMinor     Int               @map("amount_minor")
+  currencyCode    String            @default("IDR") @map("currency_code")
+  status          BillingOrderStatus @default(CREATED)
+  snapToken       String?           @map("snap_token")
+  snapRedirectUrl String?           @map("snap_redirect_url")
+  expiresAt       DateTime?         @map("expires_at")
+  paidAt          DateTime?         @map("paid_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  plan         SubscriptionPlan    @relation(fields: [planId], references: [id])
+  subscription Subscription?       @relation(fields: [subscriptionId], references: [id])
+  payer        User                @relation(fields: [payerUserId], references: [id])
+  subjectGroup Group?              @relation("BillingOrderGroup", fields: [subjectGroupId], references: [id])
+  transactions BillingTransaction[]
+
+  @@index([payerUserId, status])
+  @@map("billing_orders")
+}
+
+model BillingTransaction {
+  id                     String   @id @default(cuid())
+  billingOrderId         String   @map("billing_order_id")
+  midtransTransactionId  String?  @unique @map("midtrans_transaction_id")
+  midtransSubscriptionId String?  @map("midtrans_subscription_id")
+  transactionStatus      String   @map("transaction_status")
+  fraudStatus            String?  @map("fraud_status")
+  statusCode             String?  @map("status_code")
+  paymentType            String?  @map("payment_type")
+  grossAmountMinor       Int      @map("gross_amount_minor")
+  currencyCode           String   @default("IDR") @map("currency_code")
+  transactionTime        DateTime? @map("transaction_time")
+  settlementTime         DateTime? @map("settlement_time")
+  rawReference           Json?    @map("raw_reference")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  billingOrder BillingOrder @relation(fields: [billingOrderId], references: [id], onDelete: Cascade)
+
+  @@index([billingOrderId])
+  @@map("billing_transactions")
+}
+
+model BillingWebhookEvent {
+  id                   String   @id @default(cuid())
+  provider             String   @default("MIDTRANS")
+  eventType            String   @map("event_type")
+  eventHash            String   @unique @map("event_hash")
+  orderId              String?  @map("order_id")
+  midtransTransactionId String? @map("midtrans_transaction_id")
+  signatureValid       Boolean  @map("signature_valid")
+  processingStatus     String   @default("RECEIVED") @map("processing_status")
+  attemptCount         Int      @default(0) @map("attempt_count")
+  receivedAt           DateTime @default(now()) @map("received_at")
+  processedAt          DateTime? @map("processed_at")
+  payload              Json?
+
+  @@index([orderId])
+  @@map("billing_webhook_events")
+}
+
+model UsageCounter {
+  id            String   @id @default(cuid())
+  subjectType   SubjectType @map("subject_type")
+  subjectId     String   @map("subject_id")
+  metricKey     String   @map("metric_key")
+  periodStart   DateTime @map("period_start")
+  periodEnd     DateTime @map("period_end")
+  usedCount     Int      @default(0) @map("used_count")
+  reservedCount Int      @default(0) @map("reserved_count")
+  limitSnapshot Int      @map("limit_snapshot")
+  version       Int      @default(1)
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([subjectType, subjectId, metricKey, periodStart])
+  @@map("usage_counters")
+}
+
+enum BudgetPeriod {
+  MONTHLY
+  WEEKLY
+  CUSTOM
+}
+
+model GroupBudget {
+  id              String       @id @default(cuid())
+  groupId         String       @map("group_id")
+  name            String
+  period          BudgetPeriod @default(MONTHLY)
+  amountMinor     Int          @map("amount_minor")
+  currencyCode    String       @default("IDR") @map("currency_code")
+  category        String?
+  periodStart     DateTime     @map("period_start") @db.Date
+  periodEnd       DateTime?    @map("period_end") @db.Date
+  alertThreshold  Int          @default(80) @map("alert_threshold")
+  createdById     String       @map("created_by")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  archivedAt      DateTime?    @map("archived_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, periodStart])
+  @@map("group_budgets")
+}
