@@ -1,17 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
-export class PrismaService
-  extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
-  async onModuleInit() {
-    if (process.env.DATABASE_URL) {
-      await this.$connect();
-    }
-  }
-
+export class PrismaService extends PrismaClient implements OnModuleDestroy {
+  // Lazy connect: avoid hanging serverless cold-start if DB is slow
   async onModuleDestroy() {
     await this.$disconnect();
   }
