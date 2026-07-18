@@ -2,9 +2,10 @@ const path = require('path');
 const fs = require('fs');
 
 function loadBootstrap() {
+  // Nest may emit to dist/ or dist/src/ depending on config
   const candidates = [
-    path.join(__dirname, '../dist/src/bootstrap'),
     path.join(__dirname, '../dist/bootstrap'),
+    path.join(__dirname, '../dist/src/bootstrap'),
   ];
   const errors = [];
   for (const c of candidates) {
@@ -38,7 +39,6 @@ module.exports = async function handler(req, res) {
     const app = await appPromise;
     return app(req, res);
   } catch (err) {
-    // Always respond so we can see cold-start failures in browser
     const message = err && err.stack ? err.stack : String(err);
     // eslint-disable-next-line no-console
     console.error('Vercel handler error:', message);

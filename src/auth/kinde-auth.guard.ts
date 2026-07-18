@@ -6,29 +6,44 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { ApiError } from '../common/errors/api-error';
 import { ErrorCodes } from '../common/errors/error-codes';
 import { AuthenticatedRequest } from './auth.types';
 
+type JoseModule = typeof import('jose');
+
 @Injectable()
 export class KindeAuthGuard implements CanActivate {
   private readonly logger = new Logger(KindeAuthGuard.name);
-  private jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+  private josePromise: Promise<JoseModule> | null = null;
+  private jwks: ReturnType<JoseModule['createRemoteJWKSet']> | null = null;
 
   constructor(
     private readonly reflector: Reflector,
     private readonly config: ConfigService,
   ) {}
 
-  private getJwks() {
+  private loadJose() {
+    if (!this.josePromise) {
+      // jose is ESM-only; dynamic import works from CJS Nest build
+      this.josePromise = import('jose');
+    }
+    return this.josePromise;
+  }
+
+  private async getJwks() {
     if (this.jwks) return this.jwks;
-    const issuer = this.config.get<string>('KINDE_ISSUER_URL')?.replace(/\/$/, '');
+    const issuer = this.config
+      .get<string>('KINDE_ISSUER_URL')
+      ?.replace(/\/$/, '');
     if (!issuer) {
       throw ApiError.unauthorized('Konfigurasi autentikasi belum siap.');
     }
-    this.jwks = createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`));
+    const jose = await this.loadJose();
+    this.jwks = jose.createRemoteJWKSet(
+      new URL(`${issuer}/.well-known/jwks.json`),
+    );
     return this.jwks;
   }
 
@@ -65,12 +80,15 @@ export class KindeAuthGuard implements CanActivate {
     const audience = this.config.get<string>('KINDE_AUDIENCE')?.trim();
 
     try {
-      const { payload } = await jwtVerify(token, this.getJwks(), {
+      const jose = await this.loadJose();
+      const jwks = await this.getJwks();
+      const { payload } = await jose.jwtVerify(token, jwks, {
         issuer: [issuer, `${issuer}/`],
         ...(audience ? { audience } : {}),
       });
 
-      const authSubjectId = typeof payload.sub === 'string' ? payload.sub : null;
+      const authSubjectId =
+        typeof payload.sub === 'string' ? payload.sub : null;
       if (!authSubjectId) {
         throw ApiError.unauthorized('Claim subject tidak ditemukan.');
       }
