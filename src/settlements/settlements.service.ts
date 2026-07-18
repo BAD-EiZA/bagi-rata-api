@@ -24,24 +24,27 @@ export class SettlementsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  private map(s: {
-    id: string;
-    groupId: string;
-    fromUserId: string;
-    toUserId: string;
-    amountMinor: number;
-    currencyCode: string;
-    settlementDate: Date;
-    notes: string | null;
-    status: SettlementStatus;
-    createdById: string;
-    confirmedById: string | null;
-    confirmedAt: Date | null;
-    disputeReason: string | null;
-    version: number;
-    createdAt: Date;
-    updatedAt: Date;
-  }) {
+  private map(
+    s: {
+      id: string;
+      groupId: string;
+      fromUserId: string;
+      toUserId: string;
+      amountMinor: number;
+      currencyCode: string;
+      settlementDate: Date;
+      notes: string | null;
+      status: SettlementStatus;
+      createdById: string;
+      confirmedById: string | null;
+      confirmedAt: Date | null;
+      disputeReason: string | null;
+      version: number;
+      createdAt: Date;
+      updatedAt: Date;
+    },
+    attachmentIds: string[] = [],
+  ) {
     return {
       id: s.id,
       groupId: s.groupId,
@@ -59,7 +62,34 @@ export class SettlementsService {
       version: s.version,
       createdAt: s.createdAt.toISOString(),
       updatedAt: s.updatedAt.toISOString(),
+      attachmentIds,
     };
+  }
+
+  private async attachmentIdsFor(
+    groupId: string,
+    entityIds: string[],
+  ): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    if (entityIds.length === 0) return map;
+    const rows = await this.prisma.mediaAttachment.findMany({
+      where: {
+        groupId,
+        entityType: AttachmentEntityType.SETTLEMENT,
+        entityId: { in: entityIds },
+        deletedAt: null,
+        status: AttachmentStatus.READY,
+      },
+      select: { id: true, entityId: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const r of rows) {
+      if (!r.entityId) continue;
+      const list = map.get(r.entityId) ?? [];
+      list.push(r.id);
+      map.set(r.entityId, list);
+    }
+    return map;
   }
 
   async list(authSubjectId: string, groupId: string) {
@@ -70,7 +100,11 @@ export class SettlementsService {
       orderBy: [{ settlementDate: 'desc' }, { createdAt: 'desc' }],
       take: 100,
     });
-    return rows.map((r) => this.map(r));
+    const att = await this.attachmentIdsFor(
+      groupId,
+      rows.map((r) => r.id),
+    );
+    return rows.map((r) => this.map(r, att.get(r.id) ?? []));
   }
 
   async get(authSubjectId: string, groupId: string, settlementId: string) {
@@ -85,7 +119,8 @@ export class SettlementsService {
         'Pembayaran tidak ditemukan.',
       );
     }
-    return this.map(row);
+    const att = await this.attachmentIdsFor(groupId, [row.id]);
+    return this.map(row, att.get(row.id) ?? []);
   }
 
   async create(authSubjectId: string, groupId: string, dto: CreateSettlementDto) {
@@ -129,6 +164,12 @@ export class SettlementsService {
       ? SettlementStatus.PENDING_CONFIRMATION
       : SettlementStatus.CONFIRMED;
 
+    const expireDays = Number(process.env.SETTLEMENT_EXPIRE_DAYS || 14);
+    const expiresAt =
+      status === SettlementStatus.PENDING_CONFIRMATION
+        ? new Date(Date.now() + expireDays * 24 * 60 * 60 * 1000)
+        : null;
+
     const settlement = await this.prisma.$transaction(async (tx) => {
       const created = await tx.settlement.create({
         data: {
@@ -140,6 +181,7 @@ export class SettlementsService {
           settlementDate: new Date(dto.settlementDate),
           notes: dto.notes?.trim() || null,
           status,
+          expiresAt,
           createdById: user.id,
           confirmedById:
             status === SettlementStatus.CONFIRMED ? dto.toUserId : null,

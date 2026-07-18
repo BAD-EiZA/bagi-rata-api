@@ -289,6 +289,62 @@ export class GroupsService {
     return { id: updated.id, userId: updated.userId, role: updated.role };
   }
 
+  async transferOwnership(
+    authSubjectId: string,
+    groupId: string,
+    memberId: string,
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id, {
+      write: true,
+      roles: [MemberRole.OWNER],
+    });
+
+    const target = await this.prisma.groupMember.findFirst({
+      where: { id: memberId, groupId, status: MemberStatus.ACTIVE },
+    });
+    if (!target) {
+      throw ApiError.notFound(
+        ErrorCodes.MEMBER_NOT_FOUND,
+        'Anggota tidak ditemukan.',
+      );
+    }
+    if (target.userId === user.id) {
+      throw new ApiError(
+        ErrorCodes.VALIDATION_FAILED,
+        'Anda sudah menjadi owner.',
+        400,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.groupMember.updateMany({
+        where: {
+          groupId,
+          userId: user.id,
+          status: MemberStatus.ACTIVE,
+        },
+        data: { role: MemberRole.ADMIN },
+      });
+      await tx.groupMember.update({
+        where: { id: target.id },
+        data: { role: MemberRole.OWNER },
+      });
+      await tx.activityEvent.create({
+        data: {
+          groupId,
+          actorUserId: user.id,
+          eventType: 'member.ownership_transferred',
+          entityType: 'member',
+          entityId: target.id,
+          payload: { toUserId: target.userId },
+        },
+      });
+    });
+
+    return { ok: true, newOwnerUserId: target.userId };
+  }
+
   async removeMember(
     authSubjectId: string,
     groupId: string,
@@ -349,6 +405,171 @@ export class GroupsService {
       },
     });
 
+    return { ok: true };
+  }
+
+  async leave(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    const member = await this.prisma.groupMember.findFirst({
+      where: { groupId, userId: user.id, status: MemberStatus.ACTIVE },
+    });
+    if (!member) {
+      throw ApiError.notFound(
+        ErrorCodes.MEMBER_NOT_FOUND,
+        'Anda bukan anggota grup ini.',
+      );
+    }
+    if (member.role === MemberRole.OWNER) {
+      const ownerCount = await this.prisma.groupMember.count({
+        where: {
+          groupId,
+          role: MemberRole.OWNER,
+          status: MemberStatus.ACTIVE,
+        },
+      });
+      if (ownerCount <= 1) {
+        throw new ApiError(
+          ErrorCodes.VALIDATION_FAILED,
+          'Transfer ownership dulu sebelum keluar.',
+          400,
+        );
+      }
+    }
+    const balance = await this.ledger.getMemberBalance(groupId, user.id);
+    if (balance !== 0) {
+      throw new ApiError(
+        ErrorCodes.MEMBER_HAS_BALANCE,
+        'Saldo harus 0 sebelum keluar grup.',
+        400,
+        { balanceMinor: balance },
+      );
+    }
+    await this.prisma.groupMember.update({
+      where: { id: member.id },
+      data: { status: MemberStatus.REMOVED, removedAt: new Date() },
+    });
+    await this.prisma.activityEvent.create({
+      data: {
+        groupId,
+        actorUserId: user.id,
+        eventType: 'member.left',
+        entityType: 'member',
+        entityId: member.id,
+        payload: { userId: user.id },
+      },
+    });
+    return { ok: true };
+  }
+
+  async smartSettle(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id);
+    const balances = await this.ledger.getGroupBalances(groupId);
+    const debtors = balances
+      .filter((b) => b.balanceMinor < 0)
+      .map((b) => ({
+        userId: b.userId,
+        displayName: b.displayName,
+        amount: Math.abs(b.balanceMinor),
+      }))
+      .sort((a, b) => b.amount - a.amount);
+    const creditors = balances
+      .filter((b) => b.balanceMinor > 0)
+      .map((b) => ({
+        userId: b.userId,
+        displayName: b.displayName,
+        amount: b.balanceMinor,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const transfers: Array<{
+      fromUserId: string;
+      fromDisplayName: string;
+      toUserId: string;
+      toDisplayName: string;
+      amountMinor: number;
+    }> = [];
+
+    let i = 0;
+    let j = 0;
+    while (i < debtors.length && j < creditors.length) {
+      const pay = Math.min(debtors[i].amount, creditors[j].amount);
+      if (pay > 0) {
+        transfers.push({
+          fromUserId: debtors[i].userId,
+          fromDisplayName: debtors[i].displayName,
+          toUserId: creditors[j].userId,
+          toDisplayName: creditors[j].displayName,
+          amountMinor: pay,
+        });
+        debtors[i].amount -= pay;
+        creditors[j].amount -= pay;
+      }
+      if (debtors[i].amount === 0) i += 1;
+      if (creditors[j].amount === 0) j += 1;
+    }
+
+    return {
+      groupId,
+      transfers,
+      transferCount: transfers.length,
+    };
+  }
+
+  async listCategories(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id);
+    const rows = await this.prisma.groupCategory.findMany({
+      where: { groupId },
+      orderBy: { name: 'asc' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async createCategory(
+    authSubjectId: string,
+    groupId: string,
+    name: string,
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id, { write: true });
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new ApiError(
+        ErrorCodes.VALIDATION_FAILED,
+        'Nama kategori wajib.',
+        400,
+      );
+    }
+    const row = await this.prisma.groupCategory.upsert({
+      where: { groupId_name: { groupId, name: trimmed } },
+      create: { groupId, name: trimmed },
+      update: {},
+    });
+    return {
+      id: row.id,
+      name: row.name,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  async deleteCategory(
+    authSubjectId: string,
+    groupId: string,
+    categoryId: string,
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id, {
+      write: true,
+      roles: [MemberRole.OWNER, MemberRole.ADMIN],
+    });
+    await this.prisma.groupCategory.deleteMany({
+      where: { id: categoryId, groupId },
+    });
     return { ok: true };
   }
 

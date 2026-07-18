@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -11,15 +11,27 @@ export class InsightsController {
   constructor(private readonly insights: InsightsService) {}
 
   @Get('me/insights')
-  personal(@CurrentUser() auth: AuthUser) {
-    return this.insights.personalInsights(auth.authSubjectId);
+  personal(
+    @CurrentUser() auth: AuthUser,
+    @Query('period') period?: string,
+  ) {
+    const p =
+      period === 'week' || period === 'month' || period === 'all'
+        ? period
+        : 'all';
+    return this.insights.personalInsights(auth.authSubjectId, p);
   }
 
   @Get('groups/:groupId/insights')
   group(
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
+    @Query('period') period?: string,
   ) {
-    return this.insights.groupInsights(auth.authSubjectId, groupId);
+    const p =
+      period === 'week' || period === 'month' || period === 'all'
+        ? period
+        : 'all';
+    return this.insights.groupInsights(auth.authSubjectId, groupId, p);
   }
 }

@@ -4,10 +4,12 @@ import { ApiExcludeController } from '@nestjs/swagger';
 import {
   AttachmentStatus,
   BillingOrderStatus,
+  SettlementStatus,
   SubscriptionStatus,
 } from '@prisma/client';
 import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { ExpensesService } from '../expenses/expenses.service';
 
 @ApiExcludeController()
 @Controller('internal/cron')
@@ -15,6 +17,7 @@ export class CronController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly expenses: ExpensesService,
   ) {}
 
   private assertSecret(secret?: string) {
@@ -101,5 +104,28 @@ export class CronController {
       data: { status: BillingOrderStatus.EXPIRED },
     });
     return { staleOrdersExpired: stale.count };
+  }
+
+  @Public()
+  @Post('expire-settlements')
+  async expireSettlements(@Headers('x-cron-secret') secret?: string) {
+    this.assertSecret(secret);
+    const now = new Date();
+    const expired = await this.prisma.settlement.updateMany({
+      where: {
+        status: SettlementStatus.PENDING_CONFIRMATION,
+        deletedAt: null,
+        expiresAt: { lt: now },
+      },
+      data: { status: SettlementStatus.EXPIRED },
+    });
+    return { expiredSettlements: expired.count };
+  }
+
+  @Public()
+  @Post('run-recurring-expenses')
+  async runRecurring(@Headers('x-cron-secret') secret?: string) {
+    this.assertSecret(secret);
+    return this.expenses.runDueRecurring();
   }
 }

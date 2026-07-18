@@ -225,6 +225,7 @@ export class BillingService {
       planCode: string;
       groupId?: string;
       autoRenew?: boolean;
+      promoCode?: string;
     },
   ) {
     const user = await requireInternalUser(this.prisma, authSubjectId);
@@ -254,7 +255,100 @@ export class BillingService {
       });
     }
 
-    if (plan.amountMinor <= 0) {
+    let amountMinor = plan.amountMinor;
+    let promoId: string | null = null;
+    let trialDays = 0;
+    if (input.promoCode?.trim()) {
+      const promo = await this.prisma.promoCode.findFirst({
+        where: {
+          code: input.promoCode.trim().toUpperCase(),
+          active: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      });
+      if (!promo || promo.planCode !== plan.code) {
+        throw new ApiError(
+          ErrorCodes.VALIDATION_FAILED,
+          'Kode promo tidak valid untuk paket ini.',
+          400,
+        );
+      }
+      if (
+        promo.maxRedemptions != null &&
+        promo.redemptionCount >= promo.maxRedemptions
+      ) {
+        throw new ApiError(
+          ErrorCodes.VALIDATION_FAILED,
+          'Kuota promo habis.',
+          400,
+        );
+      }
+      const already = await this.prisma.promoRedemption.findFirst({
+        where: { promoCodeId: promo.id, userId: user.id },
+      });
+      if (already) {
+        throw new ApiError(
+          ErrorCodes.VALIDATION_FAILED,
+          'Promo sudah pernah dipakai.',
+          400,
+        );
+      }
+      promoId = promo.id;
+      trialDays = promo.trialDays;
+      amountMinor = Math.max(
+        0,
+        Math.floor((plan.amountMinor * (100 - promo.percentOff)) / 100),
+      );
+    }
+
+    if (amountMinor <= 0 && trialDays > 0) {
+      // 100% promo / trial: grant entitlement without Midtrans
+      const periodEnd = new Date(
+        Date.now() + trialDays * 24 * 60 * 60 * 1000,
+      );
+      const sub = await this.prisma.subscription.create({
+        data: {
+          planId: plan.id,
+          payerUserId: user.id,
+          subjectType:
+            plan.scopeType === PlanScope.GROUP
+              ? SubjectType.GROUP
+              : SubjectType.USER,
+          subjectUserId:
+            plan.scopeType === PlanScope.USER ? user.id : null,
+          subjectGroupId:
+            plan.scopeType === PlanScope.GROUP ? input.groupId! : null,
+          status: SubscriptionStatus.ACTIVE,
+          autoRenew: false,
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: periodEnd,
+        },
+      });
+      if (promoId) {
+        await this.prisma.promoRedemption.create({
+          data: { promoCodeId: promoId, userId: user.id },
+        });
+        await this.prisma.promoCode.update({
+          where: { id: promoId },
+          data: { redemptionCount: { increment: 1 } },
+        });
+      }
+      return {
+        orderId: `promo_${sub.id}`,
+        amountMinor: 0,
+        currencyCode: plan.currencyCode,
+        planCode: plan.code,
+        snapToken: '',
+        snapRedirectUrl: '',
+        clientKey: null,
+        isProduction: false,
+        autoRenewRequested: false,
+        promoApplied: true,
+        trialEndsAt: periodEnd.toISOString(),
+      };
+    }
+
+    if (amountMinor <= 0) {
       throw new ApiError(
         ErrorCodes.PLAN_NOT_AVAILABLE,
         'Paket gratis tidak membutuhkan checkout.',
@@ -280,12 +374,22 @@ export class BillingService {
           plan.billingType === BillingType.ONE_TIME
             ? BillingOrderType.PASS_PURCHASE
             : BillingOrderType.INITIAL,
-        amountMinor: plan.amountMinor,
+        amountMinor,
         currencyCode: plan.currencyCode,
         status: BillingOrderStatus.PENDING,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
     });
+
+    if (promoId) {
+      await this.prisma.promoRedemption.create({
+        data: { promoCodeId: promoId, userId: user.id },
+      });
+      await this.prisma.promoCode.update({
+        where: { id: promoId },
+        data: { redemptionCount: { increment: 1 } },
+      });
+    }
 
     const snap = await this.createSnapTransaction({
       orderId: order.orderId,
@@ -312,6 +416,7 @@ export class BillingService {
       clientKey: this.config.get<string>('MIDTRANS_CLIENT_KEY') ?? null,
       isProduction: this.config.get<string>('MIDTRANS_IS_PRODUCTION') === 'true',
       autoRenewRequested: Boolean(input.autoRenew),
+      promoApplied: Boolean(promoId),
     };
   }
 

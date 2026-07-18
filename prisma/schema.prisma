@@ -128,6 +128,10 @@ model User {
   locale       String     @default("id-ID")
   timezone     String     @default("Asia/Jakarta")
   status       UserStatus @default(ACTIVE)
+  notifyMentions     Boolean @default(true) @map("notify_mentions")
+  notifySettlements  Boolean @default(true) @map("notify_settlements")
+  notifyReminders    Boolean @default(true) @map("notify_reminders")
+  notifyEmail        Boolean @default(false) @map("notify_email")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -159,6 +163,9 @@ model User {
   subscriptionsPaid    Subscription[]       @relation("SubscriptionPayer")
   userSubscriptions    Subscription[]       @relation("SubscriptionSubjectUser")
   billingOrders        BillingOrder[]
+  expenseTemplates     ExpenseTemplate[]
+  recurringExpenses    RecurringExpense[]
+  promoRedemptions     PromoRedemption[]
 
   @@map("users")
 }
@@ -215,6 +222,9 @@ model Group {
   groupSubscriptions Subscription[] @relation("SubscriptionSubjectGroup")
   groupBillingOrders BillingOrder[] @relation("BillingOrderGroup")
   budgets            GroupBudget[]
+  expenseTemplates   ExpenseTemplate[]
+  recurringExpenses  RecurringExpense[]
+  categories         GroupCategory[]
 
   @@index([status])
   @@map("groups")
@@ -486,6 +496,7 @@ model Settlement {
   confirmedById   String?          @map("confirmed_by")
   confirmedAt     DateTime?        @map("confirmed_at")
   disputeReason   String?          @map("dispute_reason")
+  expiresAt       DateTime?        @map("expires_at")
   version         Int              @default(1)
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
@@ -498,7 +509,99 @@ model Settlement {
   confirmedBy User? @relation("SettlementConfirmer", fields: [confirmedById], references: [id])
 
   @@index([groupId, status, deletedAt])
+  @@index([status, expiresAt])
   @@map("settlements")
+}
+
+model GroupCategory {
+  id        String   @id @default(cuid())
+  groupId   String   @map("group_id")
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, name])
+  @@map("group_categories")
+}
+
+model ExpenseTemplate {
+  id           String      @id @default(cuid())
+  groupId      String      @map("group_id")
+  createdById  String      @map("created_by")
+  name         String
+  description  String
+  amountMinor  Int         @map("amount_minor")
+  splitMethod  SplitMethod @default(EQUAL) @map("split_method")
+  category     String?
+  payload      Json
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdById], references: [id])
+
+  @@index([groupId])
+  @@map("expense_templates")
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+}
+
+model RecurringExpense {
+  id            String             @id @default(cuid())
+  groupId       String             @map("group_id")
+  createdById   String             @map("created_by")
+  description   String
+  amountMinor   Int                @map("amount_minor")
+  splitMethod   SplitMethod        @default(EQUAL) @map("split_method")
+  category      String?
+  frequency     RecurringFrequency @default(MONTHLY)
+  nextRunAt     DateTime           @map("next_run_at")
+  active        Boolean            @default(true)
+  payload       Json
+  lastExpenseId String?            @map("last_expense_id")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdById], references: [id])
+
+  @@index([active, nextRunAt])
+  @@index([groupId])
+  @@map("recurring_expenses")
+}
+
+model PromoCode {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  planCode        String    @map("plan_code")
+  percentOff      Int       @default(100) @map("percent_off")
+  trialDays       Int       @default(0) @map("trial_days")
+  maxRedemptions  Int?      @map("max_redemptions")
+  redemptionCount Int       @default(0) @map("redemption_count")
+  active          Boolean   @default(true)
+  expiresAt       DateTime? @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  redemptions PromoRedemption[]
+
+  @@map("promo_codes")
+}
+
+model PromoRedemption {
+  id          String   @id @default(cuid())
+  promoCodeId String   @map("promo_code_id")
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  promoCode PromoCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([promoCodeId, userId])
+  @@map("promo_redemptions")
 }
 
 model Comment {

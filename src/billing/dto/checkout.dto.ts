@@ -15,4 +15,9 @@ export class CheckoutDto {
   @IsOptional()
   @IsBoolean()
   autoRenew?: boolean;
+
+  @ApiPropertyOptional({ description: 'Kode promo opsional' })
+  @IsOptional()
+  @IsString()
+  promoCode?: string;
 }

@@ -286,6 +286,151 @@ export class ExportsService {
     };
   }
 
+  async exportGroupCsv(
+    authSubjectId: string,
+    groupId: string,
+    query: ExpenseSearchQuery,
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id);
+    const group = await this.prisma.group.findUniqueOrThrow({
+      where: { id: groupId },
+    });
+    const where = this.buildWhere(groupId, query);
+    const expenses = await this.prisma.expense.findMany({
+      where,
+      include: { payers: true, splits: true },
+      orderBy: [{ expenseDate: 'desc' }],
+      take: 2000,
+    });
+    const members = await this.prisma.groupMember.findMany({
+      where: { groupId, status: 'ACTIVE' },
+      include: { user: { select: { id: true, displayName: true } } },
+    });
+    const nameById = new Map(
+      members.map((m) => [m.userId, m.user.displayName]),
+    );
+
+    const header = [
+      'date',
+      'description',
+      'merchant',
+      'category',
+      'amount_minor',
+      'currency',
+      'split_method',
+      'payers',
+      'splits',
+    ];
+    const rows = expenses.map((e) => [
+      e.expenseDate.toISOString().slice(0, 10),
+      e.description,
+      e.merchantName ?? '',
+      e.category ?? '',
+      String(e.amountMinor),
+      e.currencyCode,
+      e.splitMethod,
+      e.payers
+        .map((p) => `${nameById.get(p.userId) ?? p.userId}:${p.amountMinor}`)
+        .join('|'),
+      e.splits
+        .map((s) => `${nameById.get(s.userId) ?? s.userId}:${s.amountMinor}`)
+        .join('|'),
+    ]);
+    const csv = this.toCsv([header, ...rows]);
+    return {
+      filename: `bagi-rata-grup-${group.name.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.csv`,
+      buffer: Buffer.from(csv, 'utf8'),
+      contentType: 'text/csv; charset=utf-8',
+    };
+  }
+
+  async exportPersonalCsv(
+    authSubjectId: string,
+    query: ExpenseSearchQuery,
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    const memberships = await this.prisma.groupMember.findMany({
+      where: { userId: user.id, status: 'ACTIVE' },
+      include: { group: true },
+    });
+    const groupIds = memberships.map((m) => m.groupId);
+    const groupName = new Map(
+      memberships.map((m) => [m.groupId, m.group.name]),
+    );
+
+    const where: Prisma.ExpenseWhereInput = {
+      groupId: { in: groupIds },
+      deletedAt: null,
+      OR: [
+        { payers: { some: { userId: user.id } } },
+        { splits: { some: { userId: user.id } } },
+      ],
+    };
+    if (query.dateFrom || query.dateTo) {
+      where.expenseDate = {};
+      if (query.dateFrom)
+        (where.expenseDate as Prisma.DateTimeFilter).gte = new Date(
+          query.dateFrom,
+        );
+      if (query.dateTo)
+        (where.expenseDate as Prisma.DateTimeFilter).lte = new Date(
+          query.dateTo,
+        );
+    }
+
+    const expenses = await this.prisma.expense.findMany({
+      where,
+      include: {
+        payers: { where: { userId: user.id } },
+        splits: { where: { userId: user.id } },
+      },
+      orderBy: [{ expenseDate: 'desc' }],
+      take: 2000,
+    });
+
+    const header = [
+      'date',
+      'group',
+      'description',
+      'total_minor',
+      'my_paid_minor',
+      'my_owed_minor',
+      'currency',
+      'split_method',
+    ];
+    const rows = expenses.map((e) => {
+      const myPaid = e.payers.reduce((a, p) => a + p.amountMinor, 0);
+      const myOwed = e.splits.reduce((a, s) => a + s.amountMinor, 0);
+      return [
+        e.expenseDate.toISOString().slice(0, 10),
+        groupName.get(e.groupId) ?? e.groupId,
+        e.description,
+        String(e.amountMinor),
+        String(myPaid),
+        String(myOwed),
+        e.currencyCode,
+        e.splitMethod,
+      ];
+    });
+    const csv = this.toCsv([header, ...rows]);
+    return {
+      filename: `bagi-rata-pribadi-${Date.now()}.csv`,
+      buffer: Buffer.from(csv, 'utf8'),
+      contentType: 'text/csv; charset=utf-8',
+    };
+  }
+
+  private toCsv(rows: string[][]): string {
+    const escape = (cell: string) => {
+      if (/[",\n\r]/.test(cell)) {
+        return `"${cell.replace(/"/g, '""')}"`;
+      }
+      return cell;
+    };
+    return rows.map((r) => r.map(escape).join(',')).join('\n') + '\n';
+  }
+
   async exportInvoicePdf(authSubjectId: string, orderId: string) {
     const user = await requireInternalUser(this.prisma, authSubjectId);
     const order = await this.prisma.billingOrder.findFirst({

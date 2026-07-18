@@ -15,6 +15,10 @@ export type UserResponse = {
   locale: string;
   timezone: string;
   status: UserStatus;
+  notifyMentions: boolean;
+  notifySettlements: boolean;
+  notifyReminders: boolean;
+  notifyEmail: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -33,6 +37,10 @@ export class UsersService {
       locale: user.locale,
       timezone: user.timezone,
       status: user.status,
+      notifyMentions: user.notifyMentions,
+      notifySettlements: user.notifySettlements,
+      notifyReminders: user.notifyReminders,
+      notifyEmail: user.notifyEmail,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -57,7 +65,6 @@ export class UsersService {
     const authSubjectId = auth.authSubjectId;
     const existing = await this.findByAuthSubjectId(authSubjectId);
     if (existing && existing.status !== UserStatus.DELETED) {
-      // Refresh profile fields from token claims when present
       if (auth.email || auth.name || auth.picture) {
         const updated = await this.prisma.user.update({
           where: { id: existing.id },
@@ -78,9 +85,7 @@ export class UsersService {
     }
 
     const displayName =
-      auth.name?.trim() ||
-      auth.email?.split('@')[0] ||
-      'Pengguna';
+      auth.name?.trim() || auth.email?.split('@')[0] || 'Pengguna';
 
     const user = await this.prisma.user.upsert({
       where: { authSubjectId },
@@ -122,6 +127,18 @@ export class UsersService {
           : {}),
         ...(dto.locale !== undefined ? { locale: dto.locale } : {}),
         ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
+        ...(dto.notifyMentions !== undefined
+          ? { notifyMentions: dto.notifyMentions }
+          : {}),
+        ...(dto.notifySettlements !== undefined
+          ? { notifySettlements: dto.notifySettlements }
+          : {}),
+        ...(dto.notifyReminders !== undefined
+          ? { notifyReminders: dto.notifyReminders }
+          : {}),
+        ...(dto.notifyEmail !== undefined
+          ? { notifyEmail: dto.notifyEmail }
+          : {}),
       },
     });
 

@@ -12,12 +12,21 @@ export class InsightsService {
     private readonly ledger: LedgerService,
   ) {}
 
-  async groupInsights(authSubjectId: string, groupId: string) {
+  async groupInsights(
+    authSubjectId: string,
+    groupId: string,
+    period: 'week' | 'month' | 'all' = 'all',
+  ) {
     const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
 
+    const dateFilter = this.periodToDateFilter(period);
     const expenses = await this.prisma.expense.findMany({
-      where: { groupId, deletedAt: null },
+      where: {
+        groupId,
+        deletedAt: null,
+        ...(dateFilter ? { expenseDate: dateFilter } : {}),
+      },
       include: { payers: true, splits: true },
     });
 
@@ -89,7 +98,7 @@ export class InsightsService {
 
     return {
       groupId,
-      period: 'all_time',
+      period,
       currencyCode: expenses[0]?.currencyCode ?? 'IDR',
       metrics: {
         totalExpenseMinor,
@@ -128,7 +137,26 @@ export class InsightsService {
     };
   }
 
-  async personalInsights(authSubjectId: string) {
+  private periodToDateFilter(
+    period: 'week' | 'month' | 'all',
+  ): { gte: Date } | undefined {
+    if (period === 'all') return undefined;
+    const now = new Date();
+    if (period === 'week') {
+      const d = new Date(now);
+      d.setUTCDate(d.getUTCDate() - 7);
+      return { gte: d };
+    }
+    const d = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    return { gte: d };
+  }
+
+  async personalInsights(
+    authSubjectId: string,
+    period: 'week' | 'month' | 'all' = 'all',
+  ) {
     const user = await requireInternalUser(this.prisma, authSubjectId);
 
     const memberships = await this.prisma.groupMember.findMany({
@@ -137,8 +165,13 @@ export class InsightsService {
     });
 
     const groupIds = memberships.map((m) => m.groupId);
+    const dateFilter = this.periodToDateFilter(period);
     const expenses = await this.prisma.expense.findMany({
-      where: { groupId: { in: groupIds }, deletedAt: null },
+      where: {
+        groupId: { in: groupIds },
+        deletedAt: null,
+        ...(dateFilter ? { expenseDate: dateFilter } : {}),
+      },
       include: { payers: true, splits: true },
     });
 
@@ -179,7 +212,7 @@ export class InsightsService {
 
     return {
       userId: user.id,
-      period: 'all_time',
+      period,
       metrics: {
         totalPaidMinor: paidMinor,
         totalOwedMinor: owedMinor,

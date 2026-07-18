@@ -37,6 +37,9 @@ const envSchema = z.object({
   MIDTRANS_IS_PRODUCTION: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
+  SETTLEMENT_EXPIRE_DAYS: z.coerce.number().int().positive().default(14),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

@@ -114,4 +114,106 @@ export class ExpensesController {
     const balanceMinor = await this.ledger.getMemberBalance(groupId, user.id);
     return { userId: user.id, balanceMinor };
   }
+
+  @Post('groups/:groupId/expenses/check-duplicates')
+  checkDuplicates(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+    @Body()
+    body: {
+      amountMinor: number;
+      expenseDate: string;
+      description?: string;
+      merchantName?: string;
+    },
+  ) {
+    return this.expenses.findDuplicates(auth.authSubjectId, groupId, body);
+  }
+
+  @Get('groups/:groupId/expense-templates')
+  listTemplates(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+  ) {
+    return this.expenses.listTemplates(auth.authSubjectId, groupId);
+  }
+
+  @Post('groups/:groupId/expense-templates')
+  createTemplate(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+    @Body()
+    body: {
+      name: string;
+      description: string;
+      amountMinor: number;
+      splitMethod?: string;
+      category?: string;
+      payload: unknown;
+    },
+  ) {
+    return this.expenses.createTemplate(auth.authSubjectId, groupId, {
+      ...body,
+      payload: body.payload as object,
+      splitMethod: body.splitMethod as never,
+    });
+  }
+
+  @Delete('groups/:groupId/expense-templates/:templateId')
+  deleteTemplate(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+    @Param('templateId') templateId: string,
+  ) {
+    return this.expenses.deleteTemplate(
+      auth.authSubjectId,
+      groupId,
+      templateId,
+    );
+  }
+
+  @Get('groups/:groupId/recurring-expenses')
+  listRecurring(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+  ) {
+    return this.expenses.listRecurring(auth.authSubjectId, groupId);
+  }
+
+  @Post('groups/:groupId/recurring-expenses')
+  createRecurring(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+    @Body()
+    body: {
+      description: string;
+      amountMinor: number;
+      splitMethod?: string;
+      category?: string;
+      frequency?: 'WEEKLY' | 'MONTHLY';
+      nextRunAt: string;
+      payload: unknown;
+    },
+  ) {
+    return this.expenses.createRecurring(auth.authSubjectId, groupId, {
+      ...body,
+      payload: body.payload as object,
+      splitMethod: body.splitMethod as never,
+    });
+  }
+
+  @Post('groups/:groupId/recurring-expenses/:recurringId/toggle')
+  toggleRecurring(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+    @Param('recurringId') recurringId: string,
+    @Body() body: { active: boolean },
+  ) {
+    return this.expenses.setRecurringActive(
+      auth.authSubjectId,
+      groupId,
+      recurringId,
+      body.active,
+    );
+  }
 }

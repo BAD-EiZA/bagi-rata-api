@@ -92,6 +92,65 @@ export class GroupsController {
     return this.groups.removeMember(auth.authSubjectId, groupId, memberId);
   }
 
+  @Post('groups/:groupId/leave')
+  @ApiOperation({ summary: 'Keluar dari grup (saldo harus 0)' })
+  leave(@CurrentUser() auth: AuthUser, @Param('groupId') groupId: string) {
+    return this.groups.leave(auth.authSubjectId, groupId);
+  }
+
+  @Get('groups/:groupId/smart-settle')
+  @ApiOperation({ summary: 'Saran transfer minimal (smart settle)' })
+  smartSettle(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+  ) {
+    return this.groups.smartSettle(auth.authSubjectId, groupId);
+  }
+
+  @Get('groups/:groupId/categories')
+  listCategories(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+  ) {
+    return this.groups.listCategories(auth.authSubjectId, groupId);
+  }
+
+  @Post('groups/:groupId/categories')
+  createCategory(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+    @Body() body: { name: string },
+  ) {
+    return this.groups.createCategory(auth.authSubjectId, groupId, body.name);
+  }
+
+  @Delete('groups/:groupId/categories/:categoryId')
+  deleteCategory(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+    @Param('categoryId') categoryId: string,
+  ) {
+    return this.groups.deleteCategory(
+      auth.authSubjectId,
+      groupId,
+      categoryId,
+    );
+  }
+
+  @Post('groups/:groupId/members/:memberId/transfer-ownership')
+  @ApiOperation({ summary: 'Transfer ownership ke anggota lain' })
+  transferOwnership(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+    @Param('memberId') memberId: string,
+  ) {
+    return this.groups.transferOwnership(
+      auth.authSubjectId,
+      groupId,
+      memberId,
+    );
+  }
+
   @Post('groups/:groupId/invitations')
   createInvitation(
     @CurrentUser() auth: AuthUser,

@@ -144,7 +144,21 @@ export class ExpensesService {
         'Pengeluaran tidak ditemukan.',
       );
     }
-    return this.mapExpense(expense);
+    const attachments = await this.prisma.mediaAttachment.findMany({
+      where: {
+        groupId,
+        entityType: AttachmentEntityType.EXPENSE,
+        entityId: expenseId,
+        deletedAt: null,
+        status: AttachmentStatus.READY,
+      },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return {
+      ...this.mapExpense(expense),
+      attachmentIds: attachments.map((a) => a.id),
+    };
   }
 
   async create(authSubjectId: string, groupId: string, dto: CreateExpenseDto) {
@@ -482,5 +496,251 @@ export class ExpensesService {
     });
 
     return { ok: true };
+  }
+
+  async findDuplicates(
+    authSubjectId: string,
+    groupId: string,
+    input: {
+      amountMinor: number;
+      expenseDate: string;
+      description?: string;
+      merchantName?: string;
+    },
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id);
+    const day = new Date(input.expenseDate);
+    const start = new Date(day);
+    start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(day);
+    end.setUTCHours(23, 59, 59, 999);
+    const desc = (input.description ?? '').trim().toLowerCase();
+    const merchant = (input.merchantName ?? '').trim().toLowerCase();
+    const candidates = await this.prisma.expense.findMany({
+      where: {
+        groupId,
+        deletedAt: null,
+        amountMinor: input.amountMinor,
+        expenseDate: { gte: start, lte: end },
+      },
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+    });
+    const matches = candidates.filter((c) => {
+      if (!desc && !merchant) return true;
+      const d = c.description.toLowerCase();
+      const m = (c.merchantName ?? '').toLowerCase();
+      return (
+        (desc && (d.includes(desc) || desc.includes(d))) ||
+        (merchant && m && (m.includes(merchant) || merchant.includes(m)))
+      );
+    });
+    return {
+      possibleDuplicates: matches.map((c) => ({
+        id: c.id,
+        description: c.description,
+        amountMinor: c.amountMinor,
+        expenseDate: c.expenseDate.toISOString().slice(0, 10),
+        merchantName: c.merchantName,
+      })),
+    };
+  }
+
+  async listTemplates(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id);
+    const rows = await this.prisma.expenseTemplate.findMany({
+      where: { groupId },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      amountMinor: r.amountMinor,
+      splitMethod: r.splitMethod,
+      category: r.category,
+      payload: r.payload,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async createTemplate(
+    authSubjectId: string,
+    groupId: string,
+    body: {
+      name: string;
+      description: string;
+      amountMinor: number;
+      splitMethod?: SplitMethod;
+      category?: string;
+      payload: Prisma.InputJsonValue;
+    },
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id, { write: true });
+    const row = await this.prisma.expenseTemplate.create({
+      data: {
+        groupId,
+        createdById: user.id,
+        name: body.name.trim(),
+        description: body.description.trim(),
+        amountMinor: body.amountMinor,
+        splitMethod: body.splitMethod ?? SplitMethod.EQUAL,
+        category: body.category ?? null,
+        payload: body.payload,
+      },
+    });
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      amountMinor: row.amountMinor,
+      splitMethod: row.splitMethod,
+      category: row.category,
+      payload: row.payload,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  async deleteTemplate(
+    authSubjectId: string,
+    groupId: string,
+    templateId: string,
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id, { write: true });
+    await this.prisma.expenseTemplate.deleteMany({
+      where: { id: templateId, groupId },
+    });
+    return { ok: true };
+  }
+
+  async listRecurring(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id);
+    const rows = await this.prisma.recurringExpense.findMany({
+      where: { groupId },
+      orderBy: { nextRunAt: 'asc' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      description: r.description,
+      amountMinor: r.amountMinor,
+      splitMethod: r.splitMethod,
+      category: r.category,
+      frequency: r.frequency,
+      nextRunAt: r.nextRunAt.toISOString(),
+      active: r.active,
+      lastExpenseId: r.lastExpenseId,
+      payload: r.payload,
+    }));
+  }
+
+  async createRecurring(
+    authSubjectId: string,
+    groupId: string,
+    body: {
+      description: string;
+      amountMinor: number;
+      splitMethod?: SplitMethod;
+      category?: string;
+      frequency?: 'WEEKLY' | 'MONTHLY';
+      nextRunAt: string;
+      payload: Prisma.InputJsonValue;
+    },
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id, { write: true });
+    const row = await this.prisma.recurringExpense.create({
+      data: {
+        groupId,
+        createdById: user.id,
+        description: body.description.trim(),
+        amountMinor: body.amountMinor,
+        splitMethod: body.splitMethod ?? SplitMethod.EQUAL,
+        category: body.category ?? null,
+        frequency: body.frequency === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY',
+        nextRunAt: new Date(body.nextRunAt),
+        payload: body.payload,
+      },
+    });
+    return {
+      id: row.id,
+      description: row.description,
+      amountMinor: row.amountMinor,
+      frequency: row.frequency,
+      nextRunAt: row.nextRunAt.toISOString(),
+      active: row.active,
+    };
+  }
+
+  async setRecurringActive(
+    authSubjectId: string,
+    groupId: string,
+    recurringId: string,
+    active: boolean,
+  ) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
+    await this.membership.requireMember(groupId, user.id, { write: true });
+    await this.prisma.recurringExpense.updateMany({
+      where: { id: recurringId, groupId },
+      data: { active },
+    });
+    return { ok: true, active };
+  }
+
+  async runDueRecurring() {
+    const now = new Date();
+    const due = await this.prisma.recurringExpense.findMany({
+      where: { active: true, nextRunAt: { lte: now } },
+      take: 50,
+    });
+    let created = 0;
+    for (const r of due) {
+      try {
+        const payload = (r.payload ?? {}) as Record<string, unknown>;
+        const participantIds = Array.isArray(payload.participantIds)
+          ? (payload.participantIds as string[])
+          : [];
+        const payerId =
+          typeof payload.payerId === 'string' ? payload.payerId : r.createdById;
+        const dto: CreateExpenseDto = {
+          description: r.description,
+          amountMinor: r.amountMinor,
+          expenseDate: now.toISOString().slice(0, 10),
+          splitMethod: r.splitMethod,
+          category: r.category ?? undefined,
+          payers: [{ userId: payerId, amountMinor: r.amountMinor }],
+          participantIds:
+            participantIds.length > 0 ? participantIds : [payerId],
+        };
+        // system run as creator subject
+        const creator = await this.prisma.user.findUnique({
+          where: { id: r.createdById },
+        });
+        if (!creator) continue;
+        const expense = await this.create(
+          creator.authSubjectId,
+          r.groupId,
+          dto,
+        );
+        const next = new Date(r.nextRunAt);
+        if (r.frequency === 'WEEKLY') {
+          next.setUTCDate(next.getUTCDate() + 7);
+        } else {
+          next.setUTCMonth(next.getUTCMonth() + 1);
+        }
+        await this.prisma.recurringExpense.update({
+          where: { id: r.id },
+          data: { lastExpenseId: expense.id, nextRunAt: next },
+        });
+        created += 1;
+      } catch {
+        // skip failed row
+      }
+    }
+    return { processed: due.length, created };
   }
 }

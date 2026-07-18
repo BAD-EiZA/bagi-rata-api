@@ -105,6 +105,51 @@ export class ExportsController {
     return new StreamableFile(buffer);
   }
 
+  @Get('groups/:groupId/exports/csv')
+  @ApiOperation({ summary: 'Export CSV laporan grup' })
+  async groupCsv(
+    @CurrentUser() auth: AuthUser,
+    @Param('groupId') groupId: string,
+    @Query('q') q?: string,
+    @Query('category') category?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    const { filename, buffer, contentType } =
+      await this.exports.exportGroupCsv(auth.authSubjectId, groupId, {
+        q,
+        category,
+        dateFrom,
+        dateTo,
+      });
+    res?.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
+  }
+
+  @Get('me/exports/csv')
+  @ApiOperation({ summary: 'Export CSV laporan pribadi' })
+  async personalCsv(
+    @CurrentUser() auth: AuthUser,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    const { filename, buffer, contentType } =
+      await this.exports.exportPersonalCsv(auth.authSubjectId, {
+        dateFrom,
+        dateTo,
+      });
+    res?.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
+  }
+
   @Get('billing/orders/:orderId/invoice.pdf')
   @ApiOperation({ summary: 'Invoice PDF bermerek Bagi Rata' })
   @Header('Content-Type', 'application/pdf')
