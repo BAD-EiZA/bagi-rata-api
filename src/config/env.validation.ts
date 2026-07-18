@@ -2,9 +2,23 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   APP_ENV: z
-    .enum(['development', 'preview', 'production', 'test'])
-    .default('development'),
-  APP_URL: z.string().url().default('http://localhost:3001'),
+    .string()
+    .optional()
+    .transform((v) => {
+      const cleaned = (v ?? 'development').trim().toLowerCase();
+      if (
+        cleaned === 'development' ||
+        cleaned === 'preview' ||
+        cleaned === 'production' ||
+        cleaned === 'test'
+      ) {
+        return cleaned;
+      }
+      // Vercel sets VERCEL_ENV; tolerate prod aliases
+      if (cleaned === 'prod' || cleaned === 'production\r') return 'production';
+      return 'production';
+    }),
+  APP_URL: z.string().optional().default('http://localhost:3001'),
   PORT: z.coerce.number().int().positive().default(3001),
   FRONTEND_ORIGINS: z.string().min(1).default('http://localhost:3000'),
   DATABASE_URL: z.string().min(1).optional(),
@@ -19,6 +33,7 @@ const envSchema = z.object({
   CLOUDINARY_API_SECRET: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL_ID: z.string().optional(),
+  GEMINI_MODEL: z.string().optional(),
   MIDTRANS_SERVER_KEY: z.string().optional(),
   MIDTRANS_CLIENT_KEY: z.string().optional(),
   MIDTRANS_IS_PRODUCTION: z.string().optional(),
@@ -29,6 +44,14 @@ const envSchema = z.object({
 export type AppEnv = z.infer<typeof envSchema>;
 
 export function validateEnv(config: Record<string, unknown>): AppEnv {
+  // Prefer GEMINI_MODEL_ID; fall back to GEMINI_MODEL from older env files
+  if (!config.GEMINI_MODEL_ID && config.GEMINI_MODEL) {
+    config.GEMINI_MODEL_ID = config.GEMINI_MODEL;
+  }
+  // Prefer VERCEL_ENV when present
+  if (!config.APP_ENV && config.VERCEL_ENV) {
+    config.APP_ENV = config.VERCEL_ENV;
+  }
   const parsed = envSchema.safeParse(config);
   if (!parsed.success) {
     const message = parsed.error.issues
