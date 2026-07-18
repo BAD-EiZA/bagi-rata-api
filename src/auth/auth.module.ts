@@ -1,16 +1,16 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ClerkAuthGuard } from './clerk-auth.guard';
+import { KindeAuthGuard } from './kinde-auth.guard';
 
 @Global()
 @Module({
   providers: [
-    ClerkAuthGuard,
+    KindeAuthGuard,
     {
       provide: APP_GUARD,
-      useClass: ClerkAuthGuard,
+      useClass: KindeAuthGuard,
     },
   ],
-  exports: [ClerkAuthGuard],
+  exports: [KindeAuthGuard],
 })
 export class AuthModule {}

@@ -12,7 +12,7 @@ export class InsightsController {
 
   @Get('me/insights')
   personal(@CurrentUser() auth: AuthUser) {
-    return this.insights.personalInsights(auth.clerkUserId);
+    return this.insights.personalInsights(auth.authSubjectId);
   }
 
   @Get('groups/:groupId/insights')
@@ -20,6 +20,6 @@ export class InsightsController {
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
   ) {
-    return this.insights.groupInsights(auth.clerkUserId, groupId);
+    return this.insights.groupInsights(auth.authSubjectId, groupId);
   }
 }

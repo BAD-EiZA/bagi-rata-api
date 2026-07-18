@@ -1,8 +1,11 @@
 import { Request } from 'express';
 
 export type AuthUser = {
-  clerkUserId: string;
-  sessionId?: string;
+  /** Kinde (or other IdP) subject claim `sub` */
+  authSubjectId: string;
+  email?: string;
+  name?: string;
+  picture?: string;
 };
 
 export type AuthenticatedRequest = Request & {

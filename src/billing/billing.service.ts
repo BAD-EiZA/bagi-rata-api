@@ -192,8 +192,8 @@ export class BillingService {
     }));
   }
 
-  async getEntitlements(clerkUserId: string, groupId?: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async getEntitlements(authSubjectId: string, groupId?: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const ent = groupId
       ? await this.entitlements.resolveForGroup(groupId, user.id)
       : await this.entitlements.resolveForUser(user.id);
@@ -206,8 +206,8 @@ export class BillingService {
     return { entitlement: ent, usage };
   }
 
-  async listSubscriptions(clerkUserId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async listSubscriptions(authSubjectId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const rows = await this.prisma.subscription.findMany({
       where: {
         OR: [{ payerUserId: user.id }, { subjectUserId: user.id }],
@@ -220,14 +220,14 @@ export class BillingService {
   }
 
   async checkout(
-    clerkUserId: string,
+    authSubjectId: string,
     input: {
       planCode: string;
       groupId?: string;
       autoRenew?: boolean;
     },
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.ensurePlansSeeded();
     const plan = await this.prisma.subscriptionPlan.findFirst({
       where: { code: input.planCode, isActive: true },
@@ -315,8 +315,8 @@ export class BillingService {
     };
   }
 
-  async getOrder(clerkUserId: string, orderId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async getOrder(authSubjectId: string, orderId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const order = await this.prisma.billingOrder.findFirst({
       where: { orderId, payerUserId: user.id },
       include: { plan: true, transactions: true },
@@ -341,8 +341,8 @@ export class BillingService {
     };
   }
 
-  async listOrders(clerkUserId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async listOrders(authSubjectId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const rows = await this.prisma.billingOrder.findMany({
       where: { payerUserId: user.id },
       include: { plan: true },
@@ -360,8 +360,8 @@ export class BillingService {
     }));
   }
 
-  async cancelSubscription(clerkUserId: string, subscriptionId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async cancelSubscription(authSubjectId: string, subscriptionId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const sub = await this.prisma.subscription.findFirst({
       where: {
         id: subscriptionId,
@@ -679,7 +679,7 @@ export class BillingService {
     const serverKey = this.config.get<string>('MIDTRANS_SERVER_KEY');
     if (!serverKey) {
       // Dev fallback without Midtrans credentials
-      this.logger.warn('MIDTRANS_SERVER_KEY missing — returning mock snap token');
+      this.logger.warn('MIDTRANS_SERVER_KEY missing â€” returning mock snap token');
       return {
         token: `mock-snap-${input.orderId}`,
         redirect_url: `${this.config.get('FRONTEND_ORIGINS')?.split(',')[0] ?? 'http://localhost:3000'}/checkout/result?order_id=${input.orderId}&mock=1`,

@@ -35,7 +35,7 @@ export class PwaController {
       platform?: string;
     },
   ) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     const endpointHash = createHash('sha256')
       .update(body.endpoint)
       .digest('hex');
@@ -79,7 +79,7 @@ export class PwaController {
   @ApiBearerAuth()
   @Get('push-subscriptions')
   async list(@CurrentUser() auth: AuthUser) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     const rows = await this.prisma.pushSubscription.findMany({
       where: { userId: user.id, revokedAt: null },
       orderBy: { createdAt: 'desc' },
@@ -99,7 +99,7 @@ export class PwaController {
     @CurrentUser() auth: AuthUser,
     @Param('subscriptionId') subscriptionId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     await this.prisma.pushSubscription.updateMany({
       where: { id: subscriptionId, userId: user.id },
       data: { revokedAt: new Date() },
@@ -117,7 +117,7 @@ export class PwaController {
       participantIds?: string[];
     },
   ) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     const membership = await this.prisma.groupMember.findFirst({
       where: {
         groupId: body.groupId,

@@ -12,8 +12,8 @@ export class InsightsService {
     private readonly ledger: LedgerService,
   ) {}
 
-  async groupInsights(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async groupInsights(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
 
     const expenses = await this.prisma.expense.findMany({
@@ -128,8 +128,8 @@ export class InsightsService {
     };
   }
 
-  async personalInsights(clerkUserId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async personalInsights(authSubjectId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
 
     const memberships = await this.prisma.groupMember.findMany({
       where: { userId: user.id, status: 'ACTIVE' },

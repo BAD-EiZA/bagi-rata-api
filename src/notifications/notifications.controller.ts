@@ -17,7 +17,7 @@ export class NotificationsController {
 
   @Get('notifications')
   async list(@CurrentUser() auth: AuthUser) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     const [items, unreadCount] = await Promise.all([
       this.notifications.list(user.id),
       this.notifications.unreadCount(user.id),
@@ -30,13 +30,13 @@ export class NotificationsController {
     @CurrentUser() auth: AuthUser,
     @Param('notificationId') notificationId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     return this.notifications.markRead(user.id, notificationId);
   }
 
   @Post('notifications/read-all')
   async readAll(@CurrentUser() auth: AuthUser) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     return this.notifications.markAllRead(user.id);
   }
 }

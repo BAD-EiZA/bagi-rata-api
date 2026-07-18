@@ -14,7 +14,7 @@ export class SettlementsController {
 
   @Get('groups/:groupId/settlements')
   list(@CurrentUser() auth: AuthUser, @Param('groupId') groupId: string) {
-    return this.settlements.list(auth.clerkUserId, groupId);
+    return this.settlements.list(auth.authSubjectId, groupId);
   }
 
   @Post('groups/:groupId/settlements')
@@ -23,7 +23,7 @@ export class SettlementsController {
     @Param('groupId') groupId: string,
     @Body() dto: CreateSettlementDto,
   ) {
-    return this.settlements.create(auth.clerkUserId, groupId, dto);
+    return this.settlements.create(auth.authSubjectId, groupId, dto);
   }
 
   @Get('groups/:groupId/settlements/:settlementId')
@@ -32,7 +32,7 @@ export class SettlementsController {
     @Param('groupId') groupId: string,
     @Param('settlementId') settlementId: string,
   ) {
-    return this.settlements.get(auth.clerkUserId, groupId, settlementId);
+    return this.settlements.get(auth.authSubjectId, groupId, settlementId);
   }
 
   @Post('groups/:groupId/settlements/:settlementId/confirm')
@@ -41,7 +41,7 @@ export class SettlementsController {
     @Param('groupId') groupId: string,
     @Param('settlementId') settlementId: string,
   ) {
-    return this.settlements.confirm(auth.clerkUserId, groupId, settlementId);
+    return this.settlements.confirm(auth.authSubjectId, groupId, settlementId);
   }
 
   @Post('groups/:groupId/settlements/:settlementId/dispute')
@@ -52,7 +52,7 @@ export class SettlementsController {
     @Body() dto: DisputeSettlementDto,
   ) {
     return this.settlements.dispute(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       settlementId,
       dto.reason,
@@ -65,11 +65,11 @@ export class SettlementsController {
     @Param('groupId') groupId: string,
     @Param('settlementId') settlementId: string,
   ) {
-    return this.settlements.cancel(auth.clerkUserId, groupId, settlementId);
+    return this.settlements.cancel(auth.authSubjectId, groupId, settlementId);
   }
 
   @Get('groups/:groupId/settlement-state')
   state(@CurrentUser() auth: AuthUser, @Param('groupId') groupId: string) {
-    return this.settlements.getSettlementState(auth.clerkUserId, groupId);
+    return this.settlements.getSettlementState(auth.authSubjectId, groupId);
   }
 }

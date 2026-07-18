@@ -18,7 +18,7 @@ export class AiController {
     @Body() body: { attachmentId: string },
   ) {
     return this.scans.createScan(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       body.attachmentId,
     );
@@ -30,7 +30,7 @@ export class AiController {
     @Param('groupId') groupId: string,
     @Param('scanId') scanId: string,
   ) {
-    return this.scans.getScan(auth.clerkUserId, groupId, scanId);
+    return this.scans.getScan(auth.authSubjectId, groupId, scanId);
   }
 
   @Post('groups/:groupId/receipt-scans/:scanId/retry')
@@ -39,7 +39,7 @@ export class AiController {
     @Param('groupId') groupId: string,
     @Param('scanId') scanId: string,
   ) {
-    return this.scans.retry(auth.clerkUserId, groupId, scanId);
+    return this.scans.retry(auth.authSubjectId, groupId, scanId);
   }
 
   @Post('groups/:groupId/receipt-scans/:scanId/confirm')
@@ -48,6 +48,6 @@ export class AiController {
     @Param('groupId') groupId: string,
     @Param('scanId') scanId: string,
   ) {
-    return this.scans.confirmScan(auth.clerkUserId, groupId, scanId);
+    return this.scans.confirmScan(auth.authSubjectId, groupId, scanId);
   }
 }

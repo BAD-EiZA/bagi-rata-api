@@ -25,12 +25,12 @@ export class SocialService {
   ) {}
 
   async listComments(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     entityType: string,
     entityId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const rows = await this.prisma.comment.findMany({
       where: { groupId, entityType, entityId, deletedAt: null },
@@ -54,18 +54,18 @@ export class SocialService {
   }
 
   async createComment(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     entityType: string,
     entityId: string,
     body: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
     if (body.trim().length === 0 || body.length > 2000) {
       throw new ApiError(
         ErrorCodes.VALIDATION_FAILED,
-        'Komentar 1–2000 karakter.',
+        'Komentar 1â€“2000 karakter.',
         400,
       );
     }
@@ -149,11 +149,11 @@ export class SocialService {
   }
 
   async deleteComment(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     commentId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const ctx = await this.membership.requireMember(groupId, user.id, {
       write: true,
     });
@@ -177,13 +177,13 @@ export class SocialService {
   }
 
   async setReaction(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     entityType: string,
     entityId: string,
     reactionType: ReactionType,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
 
     const reaction = await this.prisma.reaction.upsert({
@@ -212,12 +212,12 @@ export class SocialService {
   }
 
   async removeReaction(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     entityType: string,
     entityId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
     await this.prisma.reaction.deleteMany({
       where: { groupId, entityType, entityId, userId: user.id },
@@ -226,12 +226,12 @@ export class SocialService {
   }
 
   async listReactions(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     entityType: string,
     entityId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const rows = await this.prisma.reaction.findMany({
       where: { groupId, entityType, entityId },
@@ -247,11 +247,11 @@ export class SocialService {
   }
 
   async createReminder(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     recipientUserId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
     await this.membership.requireActiveMemberIds(groupId, [recipientUserId]);
 
@@ -325,11 +325,11 @@ export class SocialService {
   }
 
   async createWhatsappLink(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     recipientUserId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
     await this.membership.requireActiveMemberIds(groupId, [recipientUserId]);
 
@@ -370,7 +370,7 @@ export class SocialService {
       'http://localhost:3000';
     const deepLink = `${frontend}/groups/${groupId}/balances?share=${token}`;
 
-    const message = `Hai ${recipient.displayName} 👋\nSaldo kamu di grup “${group.name}” masih ${amountLabel}.\nLihat rinciannya di Bagi Rata: ${deepLink}`;
+    const message = `Hai ${recipient.displayName} ðŸ‘‹\nSaldo kamu di grup â€œ${group.name}â€ masih ${amountLabel}.\nLihat rinciannya di Bagi Rata: ${deepLink}`;
 
     await this.prisma.paymentReminder.create({
       data: {
@@ -392,8 +392,8 @@ export class SocialService {
     };
   }
 
-  async listActivity(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async listActivity(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const rows = await this.prisma.activityEvent.findMany({
       where: { groupId },

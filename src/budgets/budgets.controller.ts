@@ -14,7 +14,7 @@ export class BudgetsController {
   @Get('groups/:groupId/budgets')
   @ApiOperation({ summary: 'Daftar budget grup' })
   list(@CurrentUser() auth: AuthUser, @Param('groupId') groupId: string) {
-    return this.budgets.list(auth.clerkUserId, groupId);
+    return this.budgets.list(auth.authSubjectId, groupId);
   }
 
   @Post('groups/:groupId/budgets')
@@ -24,7 +24,7 @@ export class BudgetsController {
     @Param('groupId') groupId: string,
     @Body() dto: CreateBudgetDto,
   ) {
-    return this.budgets.create(auth.clerkUserId, groupId, dto);
+    return this.budgets.create(auth.authSubjectId, groupId, dto);
   }
 
   @Delete('groups/:groupId/budgets/:budgetId')
@@ -33,7 +33,7 @@ export class BudgetsController {
     @Param('groupId') groupId: string,
     @Param('budgetId') budgetId: string,
   ) {
-    return this.budgets.remove(auth.clerkUserId, groupId, budgetId);
+    return this.budgets.remove(auth.authSubjectId, groupId, budgetId);
   }
 
   @Get('groups/:groupId/forecast')
@@ -42,6 +42,6 @@ export class BudgetsController {
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
   ) {
-    return this.budgets.forecast(auth.clerkUserId, groupId);
+    return this.budgets.forecast(auth.authSubjectId, groupId);
   }
 }

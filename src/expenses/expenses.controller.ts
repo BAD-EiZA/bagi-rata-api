@@ -38,7 +38,7 @@ export class ExpensesController {
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
   ) {
-    return this.expenses.list(auth.clerkUserId, groupId);
+    return this.expenses.list(auth.authSubjectId, groupId);
   }
 
   @Post('groups/:groupId/expenses')
@@ -49,10 +49,10 @@ export class ExpensesController {
     @Body() dto: CreateExpenseDto,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     const gate = await this.idempotency.begin(user.id, idempotencyKey, dto);
     if (gate?.hit) return gate.response;
-    const created = await this.expenses.create(auth.clerkUserId, groupId, dto);
+    const created = await this.expenses.create(auth.authSubjectId, groupId, dto);
     if (gate && !gate.hit) {
       await this.idempotency.commit(
         user.id,
@@ -71,7 +71,7 @@ export class ExpensesController {
     @Param('groupId') groupId: string,
     @Param('expenseId') expenseId: string,
   ) {
-    return this.expenses.get(auth.clerkUserId, groupId, expenseId);
+    return this.expenses.get(auth.authSubjectId, groupId, expenseId);
   }
 
   @Patch('groups/:groupId/expenses/:expenseId')
@@ -81,7 +81,7 @@ export class ExpensesController {
     @Param('expenseId') expenseId: string,
     @Body() dto: UpdateExpenseDto,
   ) {
-    return this.expenses.update(auth.clerkUserId, groupId, expenseId, dto);
+    return this.expenses.update(auth.authSubjectId, groupId, expenseId, dto);
   }
 
   @Delete('groups/:groupId/expenses/:expenseId')
@@ -90,7 +90,7 @@ export class ExpensesController {
     @Param('groupId') groupId: string,
     @Param('expenseId') expenseId: string,
   ) {
-    return this.expenses.remove(auth.clerkUserId, groupId, expenseId);
+    return this.expenses.remove(auth.authSubjectId, groupId, expenseId);
   }
 
   @Get('groups/:groupId/balances')
@@ -99,7 +99,7 @@ export class ExpensesController {
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     return this.ledger.getGroupBalances(groupId);
   }
@@ -109,7 +109,7 @@ export class ExpensesController {
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, auth.clerkUserId);
+    const user = await requireInternalUser(this.prisma, auth.authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const balanceMinor = await this.ledger.getMemberBalance(groupId, user.id);
     return { userId: user.id, balanceMinor };

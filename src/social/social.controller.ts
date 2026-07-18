@@ -27,7 +27,7 @@ export class SocialController {
     @Param('entityId') entityId: string,
   ) {
     return this.social.listComments(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       entityType,
       entityId,
@@ -43,7 +43,7 @@ export class SocialController {
     @Body() body: { body: string },
   ) {
     return this.social.createComment(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       entityType,
       entityId,
@@ -57,7 +57,7 @@ export class SocialController {
     @Param('groupId') groupId: string,
     @Param('commentId') commentId: string,
   ) {
-    return this.social.deleteComment(auth.clerkUserId, groupId, commentId);
+    return this.social.deleteComment(auth.authSubjectId, groupId, commentId);
   }
 
   @Put('groups/:groupId/:entityType/:entityId/reaction')
@@ -69,7 +69,7 @@ export class SocialController {
     @Body() body: { reactionType: ReactionType },
   ) {
     return this.social.setReaction(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       entityType,
       entityId,
@@ -85,7 +85,7 @@ export class SocialController {
     @Param('entityId') entityId: string,
   ) {
     return this.social.removeReaction(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       entityType,
       entityId,
@@ -100,7 +100,7 @@ export class SocialController {
     @Param('entityId') entityId: string,
   ) {
     return this.social.listReactions(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       entityType,
       entityId,
@@ -114,7 +114,7 @@ export class SocialController {
     @Body() body: { recipientUserId: string },
   ) {
     return this.social.createReminder(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       body.recipientUserId,
     );
@@ -127,7 +127,7 @@ export class SocialController {
     @Body() body: { recipientUserId: string },
   ) {
     return this.social.createWhatsappLink(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       body.recipientUserId,
     );
@@ -138,6 +138,6 @@ export class SocialController {
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
   ) {
-    return this.social.listActivity(auth.clerkUserId, groupId);
+    return this.social.listActivity(auth.authSubjectId, groupId);
   }
 }

@@ -14,8 +14,8 @@ export class BudgetsService {
     private readonly membership: MembershipService,
   ) {}
 
-  async list(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async list(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     await this.requireBudgetEnabled(groupId);
 
@@ -38,8 +38,8 @@ export class BudgetsService {
     return withSpend;
   }
 
-  async create(clerkUserId: string, groupId: string, dto: CreateBudgetDto) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async create(authSubjectId: string, groupId: string, dto: CreateBudgetDto) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, {
       write: true,
       roles: [MemberRole.OWNER, MemberRole.ADMIN],
@@ -79,8 +79,8 @@ export class BudgetsService {
     return this.mapBudget(budget, spent);
   }
 
-  async remove(clerkUserId: string, groupId: string, budgetId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async remove(authSubjectId: string, groupId: string, budgetId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, {
       write: true,
       roles: [MemberRole.OWNER, MemberRole.ADMIN],
@@ -102,8 +102,8 @@ export class BudgetsService {
     return { ok: true };
   }
 
-  async forecast(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async forecast(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     await this.requireBudgetEnabled(groupId);
 
@@ -167,7 +167,7 @@ export class BudgetsService {
         ? Math.round((currentMonth.totalMinor / dayOfMonth) * daysInMonth)
         : 0;
 
-    const budgets = await this.list(clerkUserId, groupId);
+    const budgets = await this.list(authSubjectId, groupId);
     const activeBudget = budgets[0] ?? null;
 
     return {

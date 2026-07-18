@@ -30,18 +30,18 @@ export class GroupsController {
   @Get('groups')
   @ApiOperation({ summary: 'Daftar grup saya' })
   list(@CurrentUser() auth: AuthUser) {
-    return this.groups.list(auth.clerkUserId);
+    return this.groups.list(auth.authSubjectId);
   }
 
   @Post('groups')
   @ApiOperation({ summary: 'Buat grup' })
   create(@CurrentUser() auth: AuthUser, @Body() dto: CreateGroupDto) {
-    return this.groups.create(auth.clerkUserId, dto);
+    return this.groups.create(auth.authSubjectId, dto);
   }
 
   @Get('groups/:groupId')
   get(@CurrentUser() auth: AuthUser, @Param('groupId') groupId: string) {
-    return this.groups.get(auth.clerkUserId, groupId);
+    return this.groups.get(auth.authSubjectId, groupId);
   }
 
   @Patch('groups/:groupId')
@@ -50,22 +50,22 @@ export class GroupsController {
     @Param('groupId') groupId: string,
     @Body() dto: UpdateGroupDto,
   ) {
-    return this.groups.update(auth.clerkUserId, groupId, dto);
+    return this.groups.update(auth.authSubjectId, groupId, dto);
   }
 
   @Post('groups/:groupId/archive')
   archive(@CurrentUser() auth: AuthUser, @Param('groupId') groupId: string) {
-    return this.groups.archive(auth.clerkUserId, groupId);
+    return this.groups.archive(auth.authSubjectId, groupId);
   }
 
   @Post('groups/:groupId/restore')
   restore(@CurrentUser() auth: AuthUser, @Param('groupId') groupId: string) {
-    return this.groups.restore(auth.clerkUserId, groupId);
+    return this.groups.restore(auth.authSubjectId, groupId);
   }
 
   @Get('groups/:groupId/members')
   members(@CurrentUser() auth: AuthUser, @Param('groupId') groupId: string) {
-    return this.groups.listMembers(auth.clerkUserId, groupId);
+    return this.groups.listMembers(auth.authSubjectId, groupId);
   }
 
   @Patch('groups/:groupId/members/:memberId')
@@ -76,7 +76,7 @@ export class GroupsController {
     @Body() dto: UpdateMemberDto,
   ) {
     return this.groups.updateMember(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       memberId,
       dto,
@@ -89,7 +89,7 @@ export class GroupsController {
     @Param('groupId') groupId: string,
     @Param('memberId') memberId: string,
   ) {
-    return this.groups.removeMember(auth.clerkUserId, groupId, memberId);
+    return this.groups.removeMember(auth.authSubjectId, groupId, memberId);
   }
 
   @Post('groups/:groupId/invitations')
@@ -98,7 +98,7 @@ export class GroupsController {
     @Param('groupId') groupId: string,
     @Body() dto: CreateInvitationDto,
   ) {
-    return this.groups.createInvitation(auth.clerkUserId, groupId, dto);
+    return this.groups.createInvitation(auth.authSubjectId, groupId, dto);
   }
 
   @Get('groups/:groupId/invitations')
@@ -106,7 +106,7 @@ export class GroupsController {
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
   ) {
-    return this.groups.listInvitations(auth.clerkUserId, groupId);
+    return this.groups.listInvitations(auth.authSubjectId, groupId);
   }
 
   @Delete('groups/:groupId/invitations/:invitationId')
@@ -116,7 +116,7 @@ export class GroupsController {
     @Param('invitationId') invitationId: string,
   ) {
     return this.groups.revokeInvitation(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       invitationId,
     );
@@ -133,6 +133,6 @@ export class GroupsController {
     @CurrentUser() auth: AuthUser,
     @Param('token') token: string,
   ) {
-    return this.groups.acceptInvitation(auth.clerkUserId, token);
+    return this.groups.acceptInvitation(auth.authSubjectId, token);
   }
 }

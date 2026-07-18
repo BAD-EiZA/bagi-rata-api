@@ -62,8 +62,8 @@ export class SettlementsService {
     };
   }
 
-  async list(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async list(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const rows = await this.prisma.settlement.findMany({
       where: { groupId, deletedAt: null },
@@ -73,8 +73,8 @@ export class SettlementsService {
     return rows.map((r) => this.map(r));
   }
 
-  async get(clerkUserId: string, groupId: string, settlementId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async get(authSubjectId: string, groupId: string, settlementId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const row = await this.prisma.settlement.findFirst({
       where: { id: settlementId, groupId, deletedAt: null },
@@ -88,8 +88,8 @@ export class SettlementsService {
     return this.map(row);
   }
 
-  async create(clerkUserId: string, groupId: string, dto: CreateSettlementDto) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async create(authSubjectId: string, groupId: string, dto: CreateSettlementDto) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const ctx = await this.membership.requireMember(groupId, user.id, {
       write: true,
     });
@@ -217,11 +217,11 @@ export class SettlementsService {
   }
 
   async confirm(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     settlementId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
 
     const existing = await this.prisma.settlement.findFirst({
@@ -298,12 +298,12 @@ export class SettlementsService {
   }
 
   async dispute(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     settlementId: string,
     reason: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
 
     const existing = await this.prisma.settlement.findFirst({
@@ -364,11 +364,11 @@ export class SettlementsService {
   }
 
   async cancel(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     settlementId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
 
     const existing = await this.prisma.settlement.findFirst({
@@ -404,8 +404,8 @@ export class SettlementsService {
     return this.map(updated);
   }
 
-  async getSettlementState(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async getSettlementState(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const state = await this.prisma.groupSettlementState.findUnique({
       where: { groupId },

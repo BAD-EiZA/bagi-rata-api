@@ -33,25 +33,25 @@ export class BillingController {
     @CurrentUser() auth: AuthUser,
     @Query('groupId') groupId?: string,
   ) {
-    return this.billing.getEntitlements(auth.clerkUserId, groupId);
+    return this.billing.getEntitlements(auth.authSubjectId, groupId);
   }
 
   @ApiBearerAuth()
   @Get('billing/subscriptions')
   subscriptions(@CurrentUser() auth: AuthUser) {
-    return this.billing.listSubscriptions(auth.clerkUserId);
+    return this.billing.listSubscriptions(auth.authSubjectId);
   }
 
   @ApiBearerAuth()
   @Post('billing/checkout')
   checkout(@CurrentUser() auth: AuthUser, @Body() dto: CheckoutDto) {
-    return this.billing.checkout(auth.clerkUserId, dto);
+    return this.billing.checkout(auth.authSubjectId, dto);
   }
 
   @ApiBearerAuth()
   @Get('billing/orders')
   orders(@CurrentUser() auth: AuthUser) {
-    return this.billing.listOrders(auth.clerkUserId);
+    return this.billing.listOrders(auth.authSubjectId);
   }
 
   @ApiBearerAuth()
@@ -60,7 +60,7 @@ export class BillingController {
     @CurrentUser() auth: AuthUser,
     @Param('orderId') orderId: string,
   ) {
-    return this.billing.getOrder(auth.clerkUserId, orderId);
+    return this.billing.getOrder(auth.authSubjectId, orderId);
   }
 
   @ApiBearerAuth()
@@ -69,7 +69,7 @@ export class BillingController {
     @CurrentUser() auth: AuthUser,
     @Param('subscriptionId') subscriptionId: string,
   ) {
-    return this.billing.cancelSubscription(auth.clerkUserId, subscriptionId);
+    return this.billing.cancelSubscription(auth.authSubjectId, subscriptionId);
   }
 
   @ApiBearerAuth()
@@ -78,7 +78,7 @@ export class BillingController {
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
   ) {
-    return this.billing.getEntitlements(auth.clerkUserId, groupId);
+    return this.billing.getEntitlements(auth.authSubjectId, groupId);
   }
 
   @ApiBearerAuth()
@@ -88,7 +88,7 @@ export class BillingController {
     @Param('groupId') groupId: string,
     @Body() dto: CheckoutDto,
   ) {
-    return this.billing.checkout(auth.clerkUserId, {
+    return this.billing.checkout(auth.authSubjectId, {
       ...dto,
       groupId,
     });

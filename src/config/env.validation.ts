@@ -14,8 +14,7 @@ const envSchema = z.object({
       ) {
         return cleaned;
       }
-      // Vercel sets VERCEL_ENV; tolerate prod aliases
-      if (cleaned === 'prod' || cleaned === 'production\r') return 'production';
+      if (cleaned === 'prod') return 'production';
       return 'production';
     }),
   APP_URL: z.string().optional().default('http://localhost:3001'),
@@ -23,10 +22,9 @@ const envSchema = z.object({
   FRONTEND_ORIGINS: z.string().min(1).default('http://localhost:3000'),
   DATABASE_URL: z.string().min(1).optional(),
   DIRECT_URL: z.string().min(1).optional(),
-  CLERK_SECRET_KEY: z.string().min(1).optional(),
-  CLERK_JWT_KEY: z.string().optional(),
-  CLERK_WEBHOOK_SIGNING_SECRET: z.string().optional(),
-  CLERK_AUTHORIZED_PARTIES: z.string().optional(),
+  // Kinde
+  KINDE_ISSUER_URL: z.string().optional(),
+  KINDE_AUDIENCE: z.string().optional(),
   LOG_LEVEL: z.string().default('log'),
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
@@ -44,11 +42,9 @@ const envSchema = z.object({
 export type AppEnv = z.infer<typeof envSchema>;
 
 export function validateEnv(config: Record<string, unknown>): AppEnv {
-  // Prefer GEMINI_MODEL_ID; fall back to GEMINI_MODEL from older env files
   if (!config.GEMINI_MODEL_ID && config.GEMINI_MODEL) {
     config.GEMINI_MODEL_ID = config.GEMINI_MODEL;
   }
-  // Prefer VERCEL_ENV when present
   if (!config.APP_ENV && config.VERCEL_ENV) {
     config.APP_ENV = config.VERCEL_ENV;
   }

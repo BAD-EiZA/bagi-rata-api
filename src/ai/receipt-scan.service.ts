@@ -82,11 +82,11 @@ export class ReceiptScanService {
   ) {}
 
   async createScan(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     attachmentId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
 
     const attachment = await this.prisma.mediaAttachment.findFirst({
@@ -178,8 +178,8 @@ export class ReceiptScanService {
     }
   }
 
-  async getScan(clerkUserId: string, groupId: string, scanId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async getScan(authSubjectId: string, groupId: string, scanId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const scan = await this.prisma.receiptScan.findFirst({
       where: { id: scanId, groupId },
@@ -193,8 +193,8 @@ export class ReceiptScanService {
     return this.mapScan(scan);
   }
 
-  async confirmScan(clerkUserId: string, groupId: string, scanId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async confirmScan(authSubjectId: string, groupId: string, scanId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
     const scan = await this.prisma.receiptScan.findFirst({
       where: { id: scanId, groupId },
@@ -222,8 +222,8 @@ export class ReceiptScanService {
     return this.mapScan(updated);
   }
 
-  async retry(clerkUserId: string, groupId: string, scanId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async retry(authSubjectId: string, groupId: string, scanId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
     const scan = await this.prisma.receiptScan.findFirst({
       where: { id: scanId, groupId },
@@ -234,7 +234,7 @@ export class ReceiptScanService {
         'Hasil scan tidak ditemukan.',
       );
     }
-    return this.createScan(clerkUserId, groupId, scan.attachmentId);
+    return this.createScan(authSubjectId, groupId, scan.attachmentId);
   }
 
   private async runGemini(publicId: string): Promise<ReceiptScanResult> {
@@ -312,7 +312,7 @@ export class ReceiptScanService {
       const expected = Math.round(item.quantity * item.unitPriceMinor);
       if (Math.abs(expected - item.lineTotalMinor) > 1) {
         warnings.push(
-          `Item "${item.name}" quantity×unitPrice tidak konsisten dengan lineTotal.`,
+          `Item "${item.name}" quantityÃ—unitPrice tidak konsisten dengan lineTotal.`,
         );
       }
     }

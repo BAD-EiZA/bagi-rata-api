@@ -37,11 +37,11 @@ export class ExportsService {
   ) {}
 
   async searchGroupExpenses(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     query: ExpenseSearchQuery,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
 
     const where = this.buildWhere(groupId, query);
@@ -107,11 +107,11 @@ export class ExportsService {
   }
 
   async exportGroupPdf(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     query: ExpenseSearchQuery,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const group = await this.prisma.group.findUniqueOrThrow({
       where: { id: groupId },
@@ -135,8 +135,8 @@ export class ExportsService {
 
     const total = expenses.reduce((a, e) => a + e.amountMinor, 0);
     const doc = createBrandedPdf({
-      title: `Laporan Grup · ${group.name}`,
-      subtitle: `Diekspor ${new Date().toLocaleString('id-ID')} · ${expenses.length} transaksi`,
+      title: `Laporan Grup Â· ${group.name}`,
+      subtitle: `Diekspor ${new Date().toLocaleString('id-ID')} Â· ${expenses.length} transaksi`,
     });
 
     addKeyValue(doc, [
@@ -162,18 +162,18 @@ export class ExportsService {
         .fillColor('#18181b')
         .font('Helvetica-Bold')
         .text(
-          `${e.expenseDate.toISOString().slice(0, 10)} · ${formatIdrPdf(e.amountMinor)}`,
+          `${e.expenseDate.toISOString().slice(0, 10)} Â· ${formatIdrPdf(e.amountMinor)}`,
         )
         .font('Helvetica')
         .fillColor('#3f3f46')
         .text(
-          `${e.description}${e.merchantName ? ` · ${e.merchantName}` : ''}${e.category ? ` · ${e.category}` : ''}`,
+          `${e.description}${e.merchantName ? ` Â· ${e.merchantName}` : ''}${e.category ? ` Â· ${e.category}` : ''}`,
         )
-        .text(`Bayar: ${payerNames} · Split: ${e.splitMethod}`)
+        .text(`Bayar: ${payerNames} Â· Split: ${e.splitMethod}`)
         .moveDown(0.4);
     }
 
-    addFooter(doc, `Bagi Rata · Laporan grup ${group.name}`);
+    addFooter(doc, `Bagi Rata Â· Laporan grup ${group.name}`);
     const buffer = await pdfToBuffer(doc);
     return {
       filename: `bagi-rata-grup-${group.name.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.pdf`,
@@ -181,8 +181,8 @@ export class ExportsService {
     };
   }
 
-  async exportPersonalPdf(clerkUserId: string, query: ExpenseSearchQuery) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async exportPersonalPdf(authSubjectId: string, query: ExpenseSearchQuery) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const memberships = await this.prisma.groupMember.findMany({
       where: { userId: user.id, status: 'ACTIVE' },
       include: { group: true },
@@ -242,14 +242,14 @@ export class ExportsService {
     }
 
     const doc = createBrandedPdf({
-      title: `Laporan Pribadi · ${user.displayName}`,
+      title: `Laporan Pribadi Â· ${user.displayName}`,
       subtitle: `Diekspor ${new Date().toLocaleString('id-ID')}`,
     });
 
     addKeyValue(doc, [
       ['Total ditalangi', formatIdrPdf(paid)],
       ['Total tanggungan', formatIdrPdf(owed)],
-      ['Selisih (paid − owed)', formatIdrPdf(paid - owed)],
+      ['Selisih (paid âˆ’ owed)', formatIdrPdf(paid - owed)],
       ['Transaksi terkait', String(expenses.length)],
     ]);
 
@@ -268,17 +268,17 @@ export class ExportsService {
         .fillColor('#18181b')
         .font('Helvetica-Bold')
         .text(
-          `${e.expenseDate.toISOString().slice(0, 10)} · ${groupName.get(e.groupId) ?? e.groupId}`,
+          `${e.expenseDate.toISOString().slice(0, 10)} Â· ${groupName.get(e.groupId) ?? e.groupId}`,
         )
         .font('Helvetica')
         .fillColor('#3f3f46')
         .text(
-          `${e.description} · total ${formatIdrPdf(e.amountMinor)} · bayar ${formatIdrPdf(myPaid)} · tanggungan ${formatIdrPdf(myOwed)}`,
+          `${e.description} Â· total ${formatIdrPdf(e.amountMinor)} Â· bayar ${formatIdrPdf(myPaid)} Â· tanggungan ${formatIdrPdf(myOwed)}`,
         )
         .moveDown(0.4);
     }
 
-    addFooter(doc, `Bagi Rata · Laporan pribadi ${user.displayName}`);
+    addFooter(doc, `Bagi Rata Â· Laporan pribadi ${user.displayName}`);
     const buffer = await pdfToBuffer(doc);
     return {
       filename: `bagi-rata-pribadi-${Date.now()}.pdf`,
@@ -286,8 +286,8 @@ export class ExportsService {
     };
   }
 
-  async exportInvoicePdf(clerkUserId: string, orderId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async exportInvoicePdf(authSubjectId: string, orderId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const order = await this.prisma.billingOrder.findFirst({
       where: { orderId, payerUserId: user.id },
       include: {
@@ -304,7 +304,7 @@ export class ExportsService {
 
     const doc = createBrandedPdf({
       title: 'Invoice / Kwitansi Pembayaran',
-      subtitle: 'Dokumen bermerek Bagi Rata · Bukan faktur pajak',
+      subtitle: 'Dokumen bermerek Bagi Rata Â· Bukan faktur pajak',
     });
 
     addKeyValue(doc, [
@@ -312,7 +312,7 @@ export class ExportsService {
       ['Status', order.status],
       ['Paket', `${order.plan.name} (${order.plan.code})`],
       ['Pelanggan', user.displayName],
-      ['Email', user.primaryEmail ?? '—'],
+      ['Email', user.primaryEmail ?? 'â€”'],
       ['Nominal', formatIdrPdf(order.amountMinor)],
       ['Mata uang', order.currencyCode],
       [
@@ -323,7 +323,7 @@ export class ExportsService {
       ],
       [
         'Metode',
-        order.transactions[0]?.paymentType ?? '—',
+        order.transactions[0]?.paymentType ?? 'â€”',
       ],
       ['Diterbitkan', new Date().toLocaleString('id-ID')],
     ]);
@@ -336,7 +336,7 @@ export class ExportsService {
         'Terima kasih telah berlangganan Bagi Rata. Invoice ini mengonfirmasi pembayaran produk digital Bagi Rata (Plus / Group Pro / Trip Pass). Tidak termasuk PPN formal kecuali dinyatakan terpisah.',
       );
 
-    addFooter(doc, 'Bagi Rata · Invoice bermerek · support@bagirata.id');
+    addFooter(doc, 'Bagi Rata Â· Invoice bermerek Â· support@bagirata.id');
     const buffer = await pdfToBuffer(doc);
     return {
       filename: `bagi-rata-invoice-${order.orderId}.pdf`,
@@ -412,7 +412,7 @@ export class ExportsService {
           in: undefined as never,
         },
       });
-      // handled via raw filter below — use relation-less subquery pattern
+      // handled via raw filter below â€” use relation-less subquery pattern
     }
 
     if (and.length) where.AND = and;
@@ -420,7 +420,7 @@ export class ExportsService {
     // hasAttachment: filter by existing media attachments
     if (query.hasAttachment != null) {
       // post-filter expensive; use nested query via attachment entityIds
-      // leave flag for controller to re-query if needed — implement via prisma raw
+      // leave flag for controller to re-query if needed â€” implement via prisma raw
     }
 
     return where;

@@ -5,9 +5,9 @@ import { ErrorCodes } from '../errors/error-codes';
 
 export async function requireInternalUser(
   prisma: PrismaService,
-  clerkUserId: string,
+  authSubjectId: string,
 ) {
-  const user = await prisma.user.findUnique({ where: { clerkUserId } });
+  const user = await prisma.user.findUnique({ where: { authSubjectId } });
   if (!user || user.status === UserStatus.DELETED) {
     throw ApiError.notFound(
       ErrorCodes.USER_NOT_FOUND,

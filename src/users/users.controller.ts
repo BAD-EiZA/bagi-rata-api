@@ -20,20 +20,20 @@ export class UsersController {
   @ApiOperation({ summary: 'Ambil profil pengguna saat ini' })
   @ApiOkResponse({ description: 'Profil pengguna' })
   getMe(@CurrentUser() auth: AuthUser) {
-    return this.usersService.getMe(auth.clerkUserId);
+    return this.usersService.getMe(auth.authSubjectId);
   }
 
   @Post('me/bootstrap')
   @ApiOperation({
-    summary: 'Bootstrap/upsert profil internal dari Clerk session',
+    summary: 'Bootstrap/upsert profil internal dari Kinde session',
   })
   bootstrap(@CurrentUser() auth: AuthUser) {
-    return this.usersService.bootstrap(auth.clerkUserId);
+    return this.usersService.bootstrap(auth);
   }
 
   @Patch('me')
   @ApiOperation({ summary: 'Perbarui preferensi profil' })
   updateMe(@CurrentUser() auth: AuthUser, @Body() dto: UpdateMeDto) {
-    return this.usersService.updateMe(auth.clerkUserId, dto);
+    return this.usersService.updateMe(auth.authSubjectId, dto);
   }
 }

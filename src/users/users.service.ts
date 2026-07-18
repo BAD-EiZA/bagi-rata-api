@@ -1,15 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { createClerkClient } from '@clerk/backend';
-import { ConfigService } from '@nestjs/config';
+import { Injectable } from '@nestjs/common';
 import { User, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApiError } from '../common/errors/api-error';
 import { ErrorCodes } from '../common/errors/error-codes';
 import { UpdateMeDto } from './dto/update-me.dto';
+import type { AuthUser } from '../auth/auth.types';
 
 export type UserResponse = {
   id: string;
-  clerkUserId: string;
+  authSubjectId: string;
   displayName: string;
   primaryEmail: string | null;
   avatarUrl: string | null;
@@ -22,21 +21,12 @@ export type UserResponse = {
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
-  private readonly clerk;
-
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
-  ) {
-    const secretKey = this.config.get<string>('CLERK_SECRET_KEY');
-    this.clerk = secretKey ? createClerkClient({ secretKey }) : null;
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   toResponse(user: User): UserResponse {
     return {
       id: user.id,
-      clerkUserId: user.clerkUserId,
+      authSubjectId: user.authSubjectId,
       displayName: user.displayName,
       primaryEmail: user.primaryEmail,
       avatarUrl: user.avatarUrl,
@@ -48,12 +38,12 @@ export class UsersService {
     };
   }
 
-  async findByClerkId(clerkUserId: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { clerkUserId } });
+  async findByAuthSubjectId(authSubjectId: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { authSubjectId } });
   }
 
-  async getMe(clerkUserId: string): Promise<UserResponse> {
-    const user = await this.findByClerkId(clerkUserId);
+  async getMe(authSubjectId: string): Promise<UserResponse> {
+    const user = await this.findByAuthSubjectId(authSubjectId);
     if (!user || user.status === UserStatus.DELETED) {
       throw ApiError.notFound(
         ErrorCodes.USER_NOT_FOUND,
@@ -63,26 +53,48 @@ export class UsersService {
     return this.toResponse(user);
   }
 
-  async bootstrap(clerkUserId: string): Promise<UserResponse> {
-    const existing = await this.findByClerkId(clerkUserId);
+  async bootstrap(auth: AuthUser): Promise<UserResponse> {
+    const authSubjectId = auth.authSubjectId;
+    const existing = await this.findByAuthSubjectId(authSubjectId);
     if (existing && existing.status !== UserStatus.DELETED) {
+      // Refresh profile fields from token claims when present
+      if (auth.email || auth.name || auth.picture) {
+        const updated = await this.prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            ...(auth.name ? { displayName: auth.name } : {}),
+            ...(auth.email !== undefined
+              ? { primaryEmail: auth.email ?? null }
+              : {}),
+            ...(auth.picture !== undefined
+              ? { avatarUrl: auth.picture ?? null }
+              : {}),
+            status: UserStatus.ACTIVE,
+          },
+        });
+        return this.toResponse(updated);
+      }
       return this.toResponse(existing);
     }
 
-    const profile = await this.fetchClerkProfile(clerkUserId);
+    const displayName =
+      auth.name?.trim() ||
+      auth.email?.split('@')[0] ||
+      'Pengguna';
+
     const user = await this.prisma.user.upsert({
-      where: { clerkUserId },
+      where: { authSubjectId },
       create: {
-        clerkUserId,
-        displayName: profile.displayName,
-        primaryEmail: profile.primaryEmail,
-        avatarUrl: profile.avatarUrl,
+        authSubjectId,
+        displayName,
+        primaryEmail: auth.email ?? null,
+        avatarUrl: auth.picture ?? null,
         status: UserStatus.ACTIVE,
       },
       update: {
-        displayName: profile.displayName,
-        primaryEmail: profile.primaryEmail,
-        avatarUrl: profile.avatarUrl,
+        displayName,
+        primaryEmail: auth.email ?? null,
+        avatarUrl: auth.picture ?? null,
         status: UserStatus.ACTIVE,
       },
     });
@@ -91,10 +103,10 @@ export class UsersService {
   }
 
   async updateMe(
-    clerkUserId: string,
+    authSubjectId: string,
     dto: UpdateMeDto,
   ): Promise<UserResponse> {
-    const existing = await this.findByClerkId(clerkUserId);
+    const existing = await this.findByAuthSubjectId(authSubjectId);
     if (!existing || existing.status === UserStatus.DELETED) {
       throw ApiError.notFound(
         ErrorCodes.USER_NOT_FOUND,
@@ -114,95 +126,5 @@ export class UsersService {
     });
 
     return this.toResponse(user);
-  }
-
-  async upsertFromClerkEvent(input: {
-    clerkUserId: string;
-    displayName: string;
-    primaryEmail: string | null;
-    avatarUrl: string | null;
-    deleted?: boolean;
-  }): Promise<void> {
-    if (input.deleted) {
-      await this.prisma.user.upsert({
-        where: { clerkUserId: input.clerkUserId },
-        create: {
-          clerkUserId: input.clerkUserId,
-          displayName: input.displayName || 'Pengguna',
-          primaryEmail: input.primaryEmail,
-          avatarUrl: input.avatarUrl,
-          status: UserStatus.DELETED,
-        },
-        update: {
-          status: UserStatus.DELETED,
-          displayName: input.displayName || undefined,
-          primaryEmail: input.primaryEmail,
-          avatarUrl: input.avatarUrl,
-        },
-      });
-      return;
-    }
-
-    await this.prisma.user.upsert({
-      where: { clerkUserId: input.clerkUserId },
-      create: {
-        clerkUserId: input.clerkUserId,
-        displayName: input.displayName || 'Pengguna',
-        primaryEmail: input.primaryEmail,
-        avatarUrl: input.avatarUrl,
-        status: UserStatus.ACTIVE,
-      },
-      update: {
-        displayName: input.displayName || undefined,
-        primaryEmail: input.primaryEmail,
-        avatarUrl: input.avatarUrl,
-        status: UserStatus.ACTIVE,
-      },
-    });
-  }
-
-  private async fetchClerkProfile(clerkUserId: string): Promise<{
-    displayName: string;
-    primaryEmail: string | null;
-    avatarUrl: string | null;
-  }> {
-    if (!this.clerk) {
-      return {
-        displayName: 'Pengguna',
-        primaryEmail: null,
-        avatarUrl: null,
-      };
-    }
-
-    try {
-      const clerkUser = await this.clerk.users.getUser(clerkUserId);
-      const primaryEmail =
-        clerkUser.emailAddresses.find(
-          (item) => item.id === clerkUser.primaryEmailAddressId,
-        )?.emailAddress ??
-        clerkUser.emailAddresses[0]?.emailAddress ??
-        null;
-
-      const displayName =
-        [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') ||
-        clerkUser.username ||
-        primaryEmail ||
-        'Pengguna';
-
-      return {
-        displayName,
-        primaryEmail,
-        avatarUrl: clerkUser.imageUrl ?? null,
-      };
-    } catch (error) {
-      this.logger.warn(
-        `Failed to fetch Clerk user ${clerkUserId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return {
-        displayName: 'Pengguna',
-        primaryEmail: null,
-        avatarUrl: null,
-      };
-    }
   }
 }

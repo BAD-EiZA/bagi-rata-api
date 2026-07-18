@@ -46,8 +46,8 @@ export class MediaService {
     }
   }
 
-  async createUploadSession(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async createUploadSession(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
 
     const session = await this.prisma.uploadSession.create({
@@ -65,12 +65,12 @@ export class MediaService {
   }
 
   async getSignature(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     uploadSessionId: string,
   ) {
     this.assertConfigured();
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
 
     const session = await this.prisma.uploadSession.findFirst({
@@ -120,12 +120,12 @@ export class MediaService {
   }
 
   async confirmAttachment(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     dto: ConfirmAttachmentDto,
   ) {
     this.assertConfigured();
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, { write: true });
 
     const session = await this.prisma.uploadSession.findFirst({
@@ -190,12 +190,12 @@ export class MediaService {
   }
 
   async getDeliveryUrl(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     attachmentId: string,
   ) {
     this.assertConfigured();
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
 
     const attachment = await this.prisma.mediaAttachment.findFirst({
@@ -229,11 +229,11 @@ export class MediaService {
   }
 
   async getAttachment(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     attachmentId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const attachment = await this.prisma.mediaAttachment.findFirst({
       where: { id: attachmentId, groupId, deletedAt: null },
@@ -248,11 +248,11 @@ export class MediaService {
   }
 
   async deleteAttachment(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     attachmentId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const ctx = await this.membership.requireMember(groupId, user.id, {
       write: true,
     });

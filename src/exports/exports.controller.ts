@@ -56,7 +56,7 @@ export class ExportsController {
       offset: offset ? Number.parseInt(offset, 10) : undefined,
     };
     return this.exports.searchGroupExpenses(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       query,
     );
@@ -74,7 +74,7 @@ export class ExportsController {
     @Res({ passthrough: true }) res?: Response,
   ) {
     const { filename, buffer } = await this.exports.exportGroupPdf(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       { q, category, dateFrom, dateTo },
     );
@@ -95,7 +95,7 @@ export class ExportsController {
     @Res({ passthrough: true }) res?: Response,
   ) {
     const { filename, buffer } = await this.exports.exportPersonalPdf(
-      auth.clerkUserId,
+      auth.authSubjectId,
       { q, dateFrom, dateTo },
     );
     res?.set({
@@ -114,7 +114,7 @@ export class ExportsController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const { filename, buffer } = await this.exports.exportInvoicePdf(
-      auth.clerkUserId,
+      auth.authSubjectId,
       orderId,
     );
     res.set({

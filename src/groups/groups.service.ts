@@ -65,8 +65,8 @@ export class GroupsService {
     };
   }
 
-  async list(clerkUserId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async list(authSubjectId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const memberships = await this.prisma.groupMember.findMany({
       where: { userId: user.id, status: MemberStatus.ACTIVE },
       include: {
@@ -91,8 +91,8 @@ export class GroupsService {
     );
   }
 
-  async create(clerkUserId: string, dto: CreateGroupDto) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async create(authSubjectId: string, dto: CreateGroupDto) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const group = await this.prisma.$transaction(async (tx) => {
       const created = await tx.group.create({
         data: {
@@ -131,8 +131,8 @@ export class GroupsService {
     return this.mapGroup(group, { myRole: MemberRole.OWNER, memberCount: 1 });
   }
 
-  async get(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async get(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const ctx = await this.membership.requireMember(groupId, user.id);
     const group = await this.prisma.group.findUniqueOrThrow({
       where: { id: groupId },
@@ -148,8 +148,8 @@ export class GroupsService {
     });
   }
 
-  async update(clerkUserId: string, groupId: string, dto: UpdateGroupDto) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async update(authSubjectId: string, groupId: string, dto: UpdateGroupDto) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, {
       write: true,
       roles: [MemberRole.OWNER, MemberRole.ADMIN],
@@ -197,8 +197,8 @@ export class GroupsService {
     return this.mapGroup(group);
   }
 
-  async archive(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async archive(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, {
       write: true,
       roles: [MemberRole.OWNER],
@@ -210,8 +210,8 @@ export class GroupsService {
     return this.mapGroup(group);
   }
 
-  async restore(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async restore(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, {
       roles: [MemberRole.OWNER],
     });
@@ -222,8 +222,8 @@ export class GroupsService {
     return this.mapGroup(group);
   }
 
-  async listMembers(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async listMembers(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const members = await this.prisma.groupMember.findMany({
       where: { groupId, status: MemberStatus.ACTIVE },
@@ -249,12 +249,12 @@ export class GroupsService {
   }
 
   async updateMember(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     memberId: string,
     dto: UpdateMemberDto,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, {
       write: true,
       roles: [MemberRole.OWNER],
@@ -290,11 +290,11 @@ export class GroupsService {
   }
 
   async removeMember(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     memberId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, {
       write: true,
       roles: [MemberRole.OWNER, MemberRole.ADMIN],
@@ -353,11 +353,11 @@ export class GroupsService {
   }
 
   async createInvitation(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     dto: CreateInvitationDto,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const ctx = await this.membership.requireMember(groupId, user.id, {
       write: true,
     });
@@ -402,8 +402,8 @@ export class GroupsService {
     };
   }
 
-  async listInvitations(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async listInvitations(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, {
       roles: [MemberRole.OWNER, MemberRole.ADMIN],
     });
@@ -427,11 +427,11 @@ export class GroupsService {
   }
 
   async revokeInvitation(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     invitationId: string,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id, {
       write: true,
       roles: [MemberRole.OWNER, MemberRole.ADMIN],
@@ -472,8 +472,8 @@ export class GroupsService {
     };
   }
 
-  async acceptInvitation(clerkUserId: string, token: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async acceptInvitation(authSubjectId: string, token: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const invitation = await this.prisma.groupInvitation.findFirst({
       where: { tokenHash: hashToken(token) },
     });

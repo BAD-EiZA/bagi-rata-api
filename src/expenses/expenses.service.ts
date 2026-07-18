@@ -110,8 +110,8 @@ export class ExpensesService {
     };
   }
 
-  async list(clerkUserId: string, groupId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async list(authSubjectId: string, groupId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
 
     const expenses = await this.prisma.expense.findMany({
@@ -127,8 +127,8 @@ export class ExpensesService {
     return expenses.map((e) => this.mapExpense(e));
   }
 
-  async get(clerkUserId: string, groupId: string, expenseId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async get(authSubjectId: string, groupId: string, expenseId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     await this.membership.requireMember(groupId, user.id);
     const expense = await this.prisma.expense.findFirst({
       where: { id: expenseId, groupId, deletedAt: null },
@@ -147,8 +147,8 @@ export class ExpensesService {
     return this.mapExpense(expense);
   }
 
-  async create(clerkUserId: string, groupId: string, dto: CreateExpenseDto) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async create(authSubjectId: string, groupId: string, dto: CreateExpenseDto) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const ctx = await this.membership.requireMember(groupId, user.id, {
       write: true,
     });
@@ -281,12 +281,12 @@ export class ExpensesService {
   }
 
   async update(
-    clerkUserId: string,
+    authSubjectId: string,
     groupId: string,
     expenseId: string,
     dto: UpdateExpenseDto,
   ) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const ctx = await this.membership.requireMember(groupId, user.id, {
       write: true,
     });
@@ -436,8 +436,8 @@ export class ExpensesService {
     return this.mapExpense(expense);
   }
 
-  async remove(clerkUserId: string, groupId: string, expenseId: string) {
-    const user = await requireInternalUser(this.prisma, clerkUserId);
+  async remove(authSubjectId: string, groupId: string, expenseId: string) {
+    const user = await requireInternalUser(this.prisma, authSubjectId);
     const ctx = await this.membership.requireMember(groupId, user.id, {
       write: true,
     });

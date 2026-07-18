@@ -17,7 +17,7 @@ export class MediaController {
     @CurrentUser() auth: AuthUser,
     @Param('groupId') groupId: string,
   ) {
-    return this.media.createUploadSession(auth.clerkUserId, groupId);
+    return this.media.createUploadSession(auth.authSubjectId, groupId);
   }
 
   @Post('groups/:groupId/uploads/signature')
@@ -28,7 +28,7 @@ export class MediaController {
     @Body() body: { uploadSessionId: string },
   ) {
     return this.media.getSignature(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       body.uploadSessionId,
     );
@@ -41,7 +41,7 @@ export class MediaController {
     @Param('groupId') groupId: string,
     @Body() dto: ConfirmAttachmentDto,
   ) {
-    return this.media.confirmAttachment(auth.clerkUserId, groupId, dto);
+    return this.media.confirmAttachment(auth.authSubjectId, groupId, dto);
   }
 
   @Get('groups/:groupId/attachments/:attachmentId')
@@ -50,7 +50,7 @@ export class MediaController {
     @Param('groupId') groupId: string,
     @Param('attachmentId') attachmentId: string,
   ) {
-    return this.media.getAttachment(auth.clerkUserId, groupId, attachmentId);
+    return this.media.getAttachment(auth.authSubjectId, groupId, attachmentId);
   }
 
   @Get('groups/:groupId/attachments/:attachmentId/delivery-url')
@@ -60,7 +60,7 @@ export class MediaController {
     @Param('attachmentId') attachmentId: string,
   ) {
     return this.media.getDeliveryUrl(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       attachmentId,
     );
@@ -73,7 +73,7 @@ export class MediaController {
     @Param('attachmentId') attachmentId: string,
   ) {
     return this.media.deleteAttachment(
-      auth.clerkUserId,
+      auth.authSubjectId,
       groupId,
       attachmentId,
     );
