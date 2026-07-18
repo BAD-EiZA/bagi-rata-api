@@ -1,15 +1,18 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "src/main.ts",
-      "use": "@vercel/node"
+  "buildCommand": "prisma generate && nest build",
+  "installCommand": "npm install",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "includeFiles": "{dist/**,node_modules/.prisma/**,node_modules/@prisma/client/**,prisma/**}"
     }
-  ],
-  "routes": [
+  },
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "src/main.ts"
+      "source": "/(.*)",
+      "destination": "/api"
     }
   ]
 }
